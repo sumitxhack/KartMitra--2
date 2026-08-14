@@ -1,10 +1,7 @@
-function App() {
+import Login from "./pages/login/Login.jsx";
 
-  return (
-    <>
-      <h1 className="font-semibold">hello</h1>
-    </>
-  )
+function App() {
+  return <Login />;
 }
 
-export default App
+export default App;
