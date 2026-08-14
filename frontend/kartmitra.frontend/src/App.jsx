@@ -2,7 +2,7 @@ function App() {
 
   return (
     <>
-      <h1>hello</h1>
+      <h1 className="font-semibold">hello</h1>
     </>
   )
 }
