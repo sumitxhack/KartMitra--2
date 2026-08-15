@@ -1,5 +1,6 @@
 
-import { ShieldCheck, Zap, Lock, ShoppingCart } from "lucide-react";
+import { ShieldCheck, Zap, Lock } from "lucide-react";
+import loginBg from '../../assets/login_page_bg.png';
 
 const Login = () => {
   const handleGoogleLogin = () => {
@@ -8,75 +9,28 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#f4f8f6] flex items-center justify-center p-0 sm:p-6">
+    <div
+    style={{ backgroundImage: `url(${loginBg})` }}
+     className="min-h-screen bg-cover bg-center bg-no-repeat flex items-center justify-center">
       
       {/* Mobile App Screen */}
-      <main className="relative w-full min-h-screen sm:min-h-211 sm:max-w-97.5 overflow-hidden bg-white sm:rounded-[42px] sm:border-8 sm:border-[#151a19] shadow-2xl">
+      <main className="relative w-full min-h-screen overflow-hidden  ">
 
-        {/* Background decorative circles */}
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          
-          {/* Large green circle */}
-          <div className="absolute -right-16 top-16 h-44 w-44 rounded-full bg-[#dff1e9]" />
-
-          {/* Second overlapping circle */}
-          <div className="absolute right-8 top-24 h-36 w-36 rounded-full bg-[#e8f5ef]" />
-
-          {/* Small dotted pattern */}
-          <div className="absolute left-7 top-20 grid grid-cols-5 gap-1.75 opacity-70">
-            {Array.from({ length: 25 }).map((_, index) => (
-              <span
-                key={index}
-                className="h-0.75 w-0.75 rounded-full bg-[#b9ded0]"
-              />
-            ))}
-          </div>
-
-          {/* Small decorative stars */}
-          <span className="absolute right-23 top-17 text-xl text-[#16a085]">
-            +
-          </span>
-
-          <span className="absolute right-18 top-21.5 text-sm text-[#16a085]">
-            +
-          </span>
-        </div>
-
+        
         {/* Content */}
-        <div className="relative z-10 flex min-h-screen flex-col px-7 pt-8 pb-5 sm:min-h-207">
+        <div className="relative flex min-h-screen flex-col px-7 pt-70 pb-5 sm:min-h-207">
 
-          {/* Status bar */}
-          <div className="mb-10 flex items-center justify-between text-[11px] font-semibold text-[#18201e]">
-            <span>9:41</span>
-
-            <div className="flex items-center gap-2">
-              <span className="text-[#60736d]">▥</span>
-              <span className="text-[#60736d]">⌁</span>
-              <span className="text-[#198b68]">▮</span>
-            </div>
-          </div>
-
-          {/* Shopping Cart Illustration */}
-          <div className="mb-8 flex justify-center">
-            <div className="flex h-20.5 w-20.5 items-center justify-center rounded-full bg-[#dff1e9]">
-              <ShoppingCart
-                size={38}
-                strokeWidth={2}
-                className="text-[#15977b]"
-              />
-            </div>
-          </div>
 
           {/* Heading */}
           <section>
-            <p className="text-[19px] font-semibold leading-tight text-[#18201e]">
+            <p className="text-[25px] font-semibold leading-tight text-[#18201e]">
               Welcome to
             </p>
 
-            <h1 className="mt-1 text-[28px] font-bold leading-[1.05] tracking-[-0.7px] text-[#111716]">
-              Smart{" "}
+            <h1 className="mt-1 text-[45px] font-bold leading-[1.05] tracking-[-0.7px] text-[#111716]">
+              Kart{" "}
               <span className="text-[#159b7d]">
-                Shopping
+                Mitra
               </span>
             </h1>
 
@@ -144,7 +98,7 @@ const Login = () => {
           <button
             type="button"
             onClick={handleGoogleLogin}
-            className="mt-12 flex h-12.75 w-full items-center justify-center gap-3 rounded-xl border border-[#dfe3e2] bg-white text-[14px] font-semibold text-[#252b29] shadow-[0_1px_3px_rgba(0,0,0,0.02)] transition-all duration-200 hover:bg-[#fafcfc] active:scale-[0.98]"
+            className="mt-12 flex h-12.75 w-full items-center justify-center gap-3 rounded-xl border border-[#dfe3e2] bg-white text-[14px] font-semibold text-[#252b29] shadow-[0_1px_3px_rgba(0,0,0,0.02)] transition-all duration-200 hover:bg-[#fafcfc] active:scale-[0.98] active:bg-[#f7f9f8]"
           >
             {/* Google G */}
             <svg
@@ -203,24 +157,6 @@ const Login = () => {
               <button className="text-[#159b7d] hover:underline">
                 Privacy Policy
               </button>
-            </p>
-          </div>
-
-          {/* Security information */}
-          <div className="mt-auto flex items-center gap-3 pt-8">
-            
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#dff1e9]">
-              <ShieldCheck
-                size={16}
-                strokeWidth={2}
-                className="text-[#159b7d]"
-              />
-            </div>
-
-            <p className="text-[10px] leading-[1.45] text-[#858f8c]">
-              Your data is always protected with
-              <br />
-              enterprise-grade security.
             </p>
           </div>
 
