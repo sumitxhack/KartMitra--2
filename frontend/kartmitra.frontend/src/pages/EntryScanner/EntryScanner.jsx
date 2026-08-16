@@ -87,11 +87,10 @@ const EntryScanner = () => {
           <div
             className="
               absolute
-              left-1/2
-              top-[73px]
-              h-[142px]
-              w-[162px]
-              -translate-x-1/2
+              top-50
+              h-70
+              w-70
+            
             "
           >
 
@@ -112,47 +111,7 @@ const EntryScanner = () => {
             <span className="absolute bottom-0 right-0 h-[3px] w-[20px] bg-[#0b806d]" />
           </div>
 
-          {/* ================================
-              DEMO QR / BARCODE
-          ================================= */}
-
-          <div
-            className="
-              absolute
-              top-[122px]
-              flex
-              h-[53px]
-              w-[137px]
-              flex-col
-              items-center
-              justify-center
-              rounded-[4px]
-              bg-white
-              shadow-lg
-            "
-          >
-            {/* Barcode */}
-            <div className="flex h-[20px] items-stretch gap-[1px]">
-              {[
-                2, 1, 3, 1, 1, 2, 1, 3, 2, 1,
-                2, 1, 1, 3, 1, 2, 2, 1, 3, 1,
-                1, 2, 3, 1, 2, 1, 2, 3, 1, 1,
-                2, 1, 3, 1, 2, 2, 1, 3,
-              ].map((width, index) => (
-                <span
-                  key={index}
-                  className="bg-[#111]"
-                  style={{
-                    width: `${width}px`,
-                  }}
-                />
-              ))}
-            </div>
-
-            <span className="mt-[3px] text-[5px] tracking-[2px] text-[#222]">
-              8 901234 567892 &gt;
-            </span>
-          </div>
+        
 
           {/* ================================
               INSTRUCTION
@@ -161,9 +120,9 @@ const EntryScanner = () => {
           <p
             className="
               absolute
-              top-[238px]
+              top-100
               text-center
-              text-[10px]
+              text-[11px]
               font-normal
               text-[#929b98]
             "
@@ -180,10 +139,10 @@ const EntryScanner = () => {
             aria-label="Start scanner"
             className="
               absolute
-              bottom-[72px]
+              bottom-50
               flex
-              h-[27px]
-              w-[27px]
+              h-[50px]
+              w-[50px]
               items-center
               justify-center
               rounded-full
@@ -196,7 +155,7 @@ const EntryScanner = () => {
             "
           >
             <Zap
-              size={13}
+              size={22}
               strokeWidth={1.7}
             />
           </button>
