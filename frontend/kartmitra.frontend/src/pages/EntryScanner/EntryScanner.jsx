@@ -33,21 +33,8 @@ const EntryScanner = () => {
           sm:shadow-2xl
         "
       >
-        {/* ================================
-            STATUS BAR
-        ================================= */}
-
-        <div className="relative z-30 flex h-[27px] items-center justify-between bg-[#0c1210] px-5 pt-1">
-          <span className="text-[11px] font-semibold text-white">
-            9:41
-          </span>
-
-          <div className="flex items-center gap-2 text-[10px]">
-            <span className="text-[#82908b]">▥</span>
-            <span className="text-[#82908b]">⌁</span>
-            <span className="text-[#39a878]">▮</span>
-          </div>
-        </div>
+       
+        
 
         {/* ================================
             HEADER
