@@ -8,7 +8,7 @@ const ProductSummary = () => {
       name: "Amul Taaza Milk",
       size: "1 L",
       price: 62.0,
-      quantity: 1,
+      quantity: 9,
       icon: "🥛",
     },
     {
@@ -16,7 +16,7 @@ const ProductSummary = () => {
       name: "Brown Bread",
       size: "400 g",
       price: 40.0,
-      quantity: 1,
+      quantity: 33,
       icon: "🍞",
     },
     {
@@ -24,7 +24,7 @@ const ProductSummary = () => {
       name: "Basmati Rice",
       size: "5 kg",
       price: 320.0,
-      quantity: 1,
+      quantity: 102,
       icon: "🍚",
     },
     {
@@ -32,21 +32,17 @@ const ProductSummary = () => {
       name: "Dove Shampoo",
       size: "180 ml",
       price: 180.0,
-      quantity: 1,
+      quantity: 56,
       icon: "🧴",
     },
     
   ]);
 
-  const handleQuantityChange = (id, change) => {
-    setCartItems((items) =>
-      items.map((item) =>
-        item.id === id
-          ? { ...item, quantity: Math.max(1, item.quantity + change) }
-          : item
-      )
-    );
-  };
+  let totalItem = cartItems.reduce((sum, item)=>{
+     return sum+ item.quantity
+  },0)
+
+  
 
   const handleRemoveItem = (id) => {
     setCartItems((items) => items.filter((item) => item.id !== id));
@@ -127,9 +123,10 @@ const ProductSummary = () => {
           {/* Total Section */}
           <div className="mt-6 space-y-4 pb-8 w-100 bg-white fixed bottom-0 border-[#e2e7e5] pt-4">
 
+
             <div className="flex items-center justify-between border-t border-[#e2e7e5] pt-4">
               <span className="text-[15px] font-bold text-[#111716]">
-                Total ({cartItems.length} items)
+                Total ({totalItem} items)
               </span>
               <span className="text-[18px] font-bold text-[#159b7d]">
                 ₹{calculateTotal()}
