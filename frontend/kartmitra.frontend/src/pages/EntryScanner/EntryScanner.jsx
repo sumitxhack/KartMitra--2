@@ -40,7 +40,7 @@ const EntryScanner = () => {
             HEADER
         ================================= */}
 
-        <header className="relative z-30 flex h-[45px] items-center bg-[#151e1b] px-5">
+        <header className="relative z-30 flex h-13 items-center bg-[#151e1b] px-5">
           <button
             onClick={handleBack}
             className="
@@ -72,7 +72,7 @@ const EntryScanner = () => {
             SCANNER AREA
         ================================= */}
 
-        <section className="relative flex flex-1 flex-col items-center">
+        <section className="flex flex-col items-center">
 
           {/* Camera background */}
           <div
