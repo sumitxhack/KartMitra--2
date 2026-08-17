@@ -35,6 +35,7 @@ const ProductSummary = () => {
       quantity: 1,
       icon: "🧴",
     },
+    
   ]);
 
   const handleQuantityChange = (id, change) => {
@@ -63,16 +64,15 @@ const ProductSummary = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#f4f8f6] flex items-center justify-center p-0 sm:p-6">
+    <div className="min-h-screen  bg-[#f4f8f6] flex items-center justify-center p-0 sm:p-6">
       {/* Mobile App Screen */}
       <main className="relative w-full min-h-screen sm:min-h-211 sm:max-w-97.5 overflow-hidden bg-white sm:rounded-[42px] sm:border-8 sm:border-[#151a19] shadow-2xl">
-        {/* Background decorative circles */}
         
         {/* Content */}
-        <div className="relative z-10 flex min-h-screen flex-col px-5 pt-6 pb-5 sm:min-h-207 sm:px-7 sm:pt-8">
+        <div className="relative z-10 flex min-h-screen flex-col px-5 sm:min-h-207 sm:px-7 sm:pt-8">
 
           {/* Header with Back Button and Title */}
-          <div className="mb-6 flex items-center gap-3">
+          <div className="mb-6 fixed h-16 absolute bg-white w-full flex items-center gap-3">
             <button
               className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f0f4f2] transition-all duration-200 hover:bg-[#e5f0eb] active:scale-95"
               onClick={() => console.log("Go back")}
@@ -86,7 +86,7 @@ const ProductSummary = () => {
           </div>
 
           {/* Cart Items */}
-          <div className="flex-1 overflow-y-auto -mx-5 px-5 sm:-mx-7 sm:px-7">
+          <div className="flex-1 overflow-y-scroll pt-18 -mx-5 px-5 sm:-mx-7 sm:px-7">
             <div className="space-y-3">
               {cartItems.map((item) => (
                 <div
@@ -101,7 +101,7 @@ const ProductSummary = () => {
                   {/* Product Details */}
                   <div className="flex-1">
                     <h3 className="text-[14px] font-semibold text-[#18201e]">
-                      {item.name}
+                     ({item.quantity}x) {item.name}
                     </h3>
                     <p className="text-[12px] text-[#7a8583]">{item.size}</p>
                     <p className="mt-1 text-[15px] font-bold text-[#111716]">
@@ -114,29 +114,10 @@ const ProductSummary = () => {
                     {/* Delete Button */}
                     <button
                       onClick={() => handleRemoveItem(item.id)}
-                      className="flex h-7 w-7 items-center justify-center rounded-full bg-red-50 transition-all duration-200 hover:bg-red-100 active:scale-95"
+                      className="flex h-9 w-9 items-center justify-center rounded-full bg-red-50 transition-all duration-200 hover:bg-red-100 active:scale-95"
                     >
-                      <Trash2 size={14} className="text-red-500" />
+                      <Trash2 size={16} className="text-red-500" />
                     </button>
-
-                    {/* Quantity Controls */}
-                    <div className="flex items-center gap-2 rounded-lg bg-white px-2 py-1">
-                      <button
-                        onClick={() => handleQuantityChange(item.id, -1)}
-                        className="flex h-5 w-5 items-center justify-center text-[#7a8583] transition-all duration-200 hover:text-[#18201e] active:scale-90"
-                      >
-                        −
-                      </button>
-                      <span className="w-4 text-center text-[12px] font-semibold text-[#18201e]">
-                        {item.quantity}
-                      </span>
-                      <button
-                        onClick={() => handleQuantityChange(item.id, 1)}
-                        className="flex h-5 w-5 items-center justify-center text-[#7a8583] transition-all duration-200 hover:text-[#18201e] active:scale-90"
-                      >
-                        +
-                      </button>
-                    </div>
                   </div>
                 </div>
               ))}
@@ -144,24 +125,7 @@ const ProductSummary = () => {
           </div>
 
           {/* Total Section */}
-          <div className="mt-6 space-y-4 border-t border-[#e2e7e5] pt-4">
-            <div className="flex items-center justify-between">
-              <span className="text-[14px] font-semibold text-[#7a8583]">
-                Subtotal
-              </span>
-              <span className="text-[14px] font-semibold text-[#18201e]">
-                ₹{calculateTotal()}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <span className="text-[14px] font-semibold text-[#7a8583]">
-                Delivery
-              </span>
-              <span className="text-[14px] font-semibold text-[#18201e]">
-                FREE
-              </span>
-            </div>
+          <div className="mt-6 space-y-4 pb-8 w-100 bg-white fixed bottom-0 border-[#e2e7e5] pt-4">
 
             <div className="flex items-center justify-between border-t border-[#e2e7e5] pt-4">
               <span className="text-[15px] font-bold text-[#111716]">
@@ -171,9 +135,8 @@ const ProductSummary = () => {
                 ₹{calculateTotal()}
               </span>
             </div>
-          </div>
 
-          {/* Proceed to Pay Button */}
+            {/* Proceed to Pay Button */}
           <button
             onClick={handleProceedToPay}
             className="mt-6 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#159b7d] text-[16px] font-bold text-white transition-all duration-200 hover:bg-[#148074] active:scale-[0.98] shadow-md hover:shadow-lg"
@@ -181,6 +144,9 @@ const ProductSummary = () => {
             Proceed To Pay
             <span className="text-lg">→</span>
           </button>
+          </div>
+
+          
         </div>
       </main>
     </div>

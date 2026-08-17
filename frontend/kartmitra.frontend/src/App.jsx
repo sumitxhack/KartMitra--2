@@ -1,9 +1,9 @@
-import Payment from "./pages/Payment/Payment.jsx"
+import ProductSummary from "./pages/ProductSummary/ProductSummary.jsx"
 function App() {
  
   return (
  <>
-  <Payment />
+  <ProductSummary />
  </>
 )
 }
