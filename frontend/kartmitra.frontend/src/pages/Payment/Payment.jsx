@@ -131,7 +131,7 @@ const Payment = () => {
                 UPI Options
               </h3>
 
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-4 gap-10 mr-5 ml-5">
                 {paymentMethods.map((method) => (
                   <button
                     key={method.id}
@@ -143,14 +143,12 @@ const Payment = () => {
                     }`}
                   >
                     <div
-                      className={`flex h-12 w-12 items-center justify-center rounded-lg text-lg transition-all duration-200 
+                      className={`flex h-8 w-10 items-center justify-center rounded-lg text-lg transition-all duration-200 
                        `}
                     >
                       <img src={method.icon} alt="" />
                     </div>
-                    {/* <span className="text-center text-[11px] font-semibold text-[#18201e]">
-                      {method.label}
-                    </span> */}
+                    
                   </button>
                 ))}
               </div>
