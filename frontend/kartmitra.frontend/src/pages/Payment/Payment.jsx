@@ -5,10 +5,10 @@ const Payment = () => {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null);
 
   const paymentMethods = [
-    { id: "google_pay", label: "Google Pay", icon: "▭" },
-    { id: "phonepe", label: "PhonePe", icon: "▭" },
-    { id: "paytm", label: "Paytm", icon: "▭" },
-    { id: "bhim", label: "BHIM UPI", icon: "▭" },
+    { id: "google_pay", label: "Google Pay", icon: "https://uxwing.com/wp-content/themes/uxwing/download/brands-and-social-media/google-pay-icon.png" },
+    { id: "phonepe", label: "PhonePe", icon: "https://uxwing.com/wp-content/themes/uxwing/download/brands-and-social-media/phonepe-icon.png" },
+    { id: "paytm", label: "Paytm", icon: "https://uxwing.com/wp-content/themes/uxwing/download/brands-and-social-media/paytm-icon.png" },
+    { id: "bhim", label: "BHIM UPI", icon: "https://uxwing.com/wp-content/themes/uxwing/download/brands-and-social-media/bhim-app-icon.png" },
   ];
 
   const orderSummary = {
@@ -38,38 +38,10 @@ const Payment = () => {
     <div className="min-h-screen bg-[#f4f8f6] flex items-center justify-center p-0 sm:p-6">
       {/* Mobile App Screen */}
       <main className="relative w-full min-h-screen sm:min-h-211 sm:max-w-97.5 overflow-hidden bg-white sm:rounded-[42px] sm:border-8 sm:border-[#151a19] shadow-2xl">
-        {/* Background decorative circles */}
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute -right-16 top-16 h-44 w-44 rounded-full bg-[#dff1e9]" />
-          <div className="absolute right-8 top-24 h-36 w-36 rounded-full bg-[#e8f5ef]" />
-          <div className="absolute left-7 top-20 grid grid-cols-5 gap-1.75 opacity-70">
-            {Array.from({ length: 25 }).map((_, index) => (
-              <span
-                key={index}
-                className="h-0.75 w-0.75 rounded-full bg-[#b9ded0]"
-              />
-            ))}
-          </div>
-          <span className="absolute right-23 top-17 text-xl text-[#16a085]">
-            +
-          </span>
-          <span className="absolute right-18 top-21.5 text-sm text-[#16a085]">
-            +
-          </span>
-        </div>
-
+        
         {/* Content */}
         <div className="relative z-10 flex min-h-screen flex-col px-5 pt-6 pb-5 sm:min-h-207 sm:px-7 sm:pt-8">
-          {/* Status bar */}
-          <div className="mb-6 flex items-center justify-between text-[11px] font-semibold text-[#18201e]">
-            <span>9:41</span>
-            <div className="flex items-center gap-2">
-              <span className="text-[#60736d]">▥</span>
-              <span className="text-[#60736d]">⌁</span>
-              <span className="text-[#198b68]">▮</span>
-            </div>
-          </div>
-
+          
           {/* Header with Back Button and Title */}
           <div className="mb-6 flex items-center gap-3">
             <button
@@ -171,17 +143,14 @@ const Payment = () => {
                     }`}
                   >
                     <div
-                      className={`flex h-12 w-12 items-center justify-center rounded-lg text-lg transition-all duration-200 ${
-                        selectedPaymentMethod === method.id
-                          ? "bg-[#159b7d] text-white"
-                          : "bg-[#f7f9f8] text-[#18201e]"
-                      }`}
+                      className={`flex h-12 w-12 items-center justify-center rounded-lg text-lg transition-all duration-200 
+                       `}
                     >
-                      {method.icon}
+                      <img src={method.icon} alt="" />
                     </div>
-                    <span className="text-center text-[11px] font-semibold text-[#18201e]">
+                    {/* <span className="text-center text-[11px] font-semibold text-[#18201e]">
                       {method.label}
-                    </span>
+                    </span> */}
                   </button>
                 ))}
               </div>
