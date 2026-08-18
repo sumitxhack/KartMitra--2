@@ -1,11 +1,11 @@
-import Shopping from "./pages/Shopping/Shopping.jsx"
+import Login from "./pages/login/Login.jsx"
 
 
 function App() {
  
   return (
  <>
-  <Shopping />
+  <Login />
  </>
 )
 }
