@@ -28,6 +28,90 @@ const Shopping = () => {
       price: 40,
       icon: "🍞",
     },
+    {
+      id: 1,
+      name: "Amul Taaza Milk",
+      quantity: "1 L",
+      price: 62,
+      icon: "🥛",
+    },
+    {
+      id: 2,
+      name: "Brown Bread",
+      quantity: "400 g",
+      price: 40,
+      icon: "🍞",
+    },
+    {
+      id: 1,
+      name: "Amul Taaza Milk",
+      quantity: "1 L",
+      price: 62,
+      icon: "🥛",
+    },
+    {
+      id: 2,
+      name: "Brown Bread",
+      quantity: "400 g",
+      price: 40,
+      icon: "🍞",
+    },
+    {
+      id: 1,
+      name: "Amul Taaza Milk",
+      quantity: "1 L",
+      price: 62,
+      icon: "🥛",
+    },
+    {
+      id: 2,
+      name: "Brown Bread",
+      quantity: "400 g",
+      price: 40,
+      icon: "🍞",
+    },
+    {
+      id: 1,
+      name: "Amul Taaza Milk",
+      quantity: "1 L",
+      price: 62,
+      icon: "🥛",
+    },
+    {
+      id: 2,
+      name: "Brown Bread",
+      quantity: "400 g",
+      price: 40,
+      icon: "🍞",
+    },
+    {
+      id: 1,
+      name: "Amul Taaza Milk",
+      quantity: "1 L",
+      price: 62,
+      icon: "🥛",
+    },
+    {
+      id: 2,
+      name: "Brown Bread",
+      quantity: "400 g",
+      price: 40,
+      icon: "🍞",
+    },
+    {
+      id: 1,
+      name: "Amul Taaza Milk",
+      quantity: "1 L",
+      price: 62,
+      icon: "🥛",
+    },
+    {
+      id: 2,
+      name: "Brown Bread",
+      quantity: "400 g",
+      price: 40,
+      icon: "🍞",
+    },
   ]);
 
   const [cartCount] = useState(4);
@@ -121,27 +205,12 @@ const Shopping = () => {
         "
       >
 
-        {/* ==========================
-            STATUS BAR
-        ========================== */}
-
-        <div className="relative z-30 flex h-[27px] items-center justify-between bg-[#151b19] px-5">
-          <span className="text-[11px] font-semibold text-white">
-            9:41
-          </span>
-
-          <div className="flex items-center gap-2 text-[10px]">
-            <span className="text-[#87928f]">▥</span>
-            <span className="text-[#87928f]">⌁</span>
-            <span className="text-[#35a676]">▮</span>
-          </div>
-        </div>
 
         {/* ==========================
             HEADER
         ========================== */}
 
-        <header className="relative z-20 flex h-[39px] items-center bg-[#151b19] px-3">
+        <header className="relative z-20 flex h-15 items-center bg-[#151b19] px-3">
 
           <button
             className="
@@ -158,7 +227,7 @@ const Shopping = () => {
             <Menu size={18} strokeWidth={1.6} />
           </button>
 
-          <div className="ml-auto text-[9px] text-[#727d79]">
+          <div className="ml-auto text-[12px] text-[#727d79]">
             Session ID:{" "}
             <span className="font-semibold text-[#19a77f]">
               {sessionId}
@@ -173,10 +242,9 @@ const Shopping = () => {
         <section
           className="
             relative
-            h-[191px]
-            shrink-0
+            h-75
             overflow-hidden
-            rounded-b-[12px]
+            rounded-b-3xl
             bg-[#414141]
             shadow-[0_5px_12px_rgba(0,0,0,0.12)]
           "
@@ -225,14 +293,14 @@ const Shopping = () => {
             RECENTLY ADDED
         ========================== */}
 
-        <section className="flex min-h-0 flex-1 flex-col px-3 pt-3">
+        <section className="flex min-h-0 flex-1 flex-col mt-3 overflow-auto pt-3">
 
-          <h2 className="mb-2 px-1 text-[10px] font-semibold text-[#68726f]">
+          <h2 className="mb-2 fixed bg-[#f8f9f8] w-full   px-5 text-[15px] font-semibold text-[#68726f]">
             Recently Added
           </h2>
 
           {/* Items */}
-          <div className="space-y-2">
+          <div className="space-y-2 mx-4">
 
             {recentItems.map((item) => (
               <div
@@ -301,12 +369,16 @@ const Shopping = () => {
 
           <div
             className="
-              mt-auto
-              rounded-[20px]
-              bg-[#f8faf9]
-              px-3
-              pb-2
-              pt-2
+              absolute
+              bottom-0
+              items-center 
+              justify-center
+              w-screen
+              h-50
+              rounded-t-[45px]
+              pt-4
+              px-4
+              bg-[#e9edeb]
               shadow-[0_-2px_12px_rgba(0,0,0,0.04)]
             "
           >
@@ -317,8 +389,8 @@ const Shopping = () => {
               <div
                 className="
                   flex
-                  h-[35px]
-                  w-[35px]
+                  h-15
+                  w-15
                   items-center
                   justify-center
                   rounded-full
@@ -327,22 +399,22 @@ const Shopping = () => {
                 "
               >
                 <ShoppingCart
-                  size={17}
+                  size={25}
                   strokeWidth={1.7}
                 />
               </div>
 
-              <div className="ml-2 flex-1">
-                <p className="text-[10px] font-semibold text-[#252a28]">
+              <div className="ml-4 flex-1">
+                <p className="text-[19px] font-semibold text-[#252a28]">
                   My Cart
                 </p>
 
-                <p className="text-[8px] text-[#8c9592]">
+                <p className="text-[13px] text-[#717271]">
                   {cartCount} Items
                 </p>
               </div>
 
-              <p className="text-[15px] font-bold text-[#252a28]">
+              <p className="text-2xl font-bold text-[#252a28]">
                 ₹{cartTotal.toLocaleString("en-IN")}.00
               </p>
             </div>
@@ -351,16 +423,16 @@ const Shopping = () => {
             <button
               onClick={handleScanProduct}
               className="
-                mt-2
+                mt-4
                 flex
-                h-[39px]
+                h-15
                 w-full
                 items-center
                 justify-center
                 gap-2
-                rounded-[10px]
+                rounded-[15px]
                 bg-[#151a19]
-                text-[11px]
+                text-[18px]
                 font-semibold
                 text-white
                 transition
@@ -371,7 +443,7 @@ const Shopping = () => {
               Scan a Product
 
               <ScanLine
-                size={13}
+                size={20}
                 strokeWidth={1.6}
               />
             </button>
@@ -385,7 +457,7 @@ const Shopping = () => {
                 flex
                 items-center
                 gap-1
-                text-[10px]
+                text-[15px]
                 font-semibold
                 text-[#159779]
               "
@@ -393,8 +465,8 @@ const Shopping = () => {
               Checkout
 
               <ArrowRight
-                size={13}
-                strokeWidth={1.7}
+                size={15}
+                strokeWidth={2}
               />
             </button>
 
