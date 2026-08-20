@@ -246,7 +246,6 @@ const Shopping = () => {
             overflow-hidden
             rounded-b-3xl
             bg-[#414141]
-            shadow-[0_5px_12px_rgba(0,0,0,0.12)]
           "
         >
 
@@ -275,39 +274,27 @@ const Shopping = () => {
               </div>
             </div>
           )}
-
-          {/* Camera overlay */}
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-
-            <div className="h-[120px] w-[165px]">
-
-              {/* Top left */}
-              <span className="absolute h-[18px] w-[3px] bg-[#159779]" />
-              <span className="absolute h-[3px] w-[18px] bg-[#159779]" />
-
-            </div>
-          </div>
         </section>
 
         {/* ==========================
             RECENTLY ADDED
         ========================== */}
 
-        <section className="flex min-h-0 flex-1 flex-col mt-3 overflow-auto pt-3">
+        <section className="flex min-h-0 flex-1 flex-col  overflow-auto ">
 
-          <h2 className="mb-2 fixed bg-[#f8f9f8] w-full   px-5 text-[15px] font-semibold text-[#68726f]">
+          <h2 className="mb-2 h-15 fixed flex items-center bg-[#f8f9f8] w-full px-5 text-[15px] font-semibold text-[#68726f] rounded-b-3xl">
             Recently Added
           </h2>
 
           {/* Items */}
-          <div className="space-y-2 mx-4">
+          <div className="space-y-2 mx-4 mt-15.5 mb-90 ">
 
             {recentItems.map((item) => (
               <div
                 key={item.id}
                 className="
                   flex
-                  h-[48px]
+                  h-20
                   items-center
                   rounded-[10px]
                   bg-white
@@ -320,14 +307,14 @@ const Shopping = () => {
                 <div
                   className="
                     flex
-                    h-[32px]
-                    w-[32px]
+                    h-16
+                    w-16
                     shrink-0
                     items-center
                     justify-center
                     rounded-lg
                     bg-[#f5f6f5]
-                    text-[13px]
+                    text-[30px]
                   "
                 >
                   {item.icon}
@@ -335,27 +322,28 @@ const Shopping = () => {
 
                 {/* Product info */}
                 <div className="ml-2 min-w-0 flex-1">
-                  <p className="truncate text-[10px] font-semibold text-[#252a28]">
+                  <p className="truncate text-[15px] font-semibold text-[#252a28]">
                     {item.name}
                   </p>
 
-                  <p className="text-[8px] text-[#929a97]">
+                  <p className="text-[12px] text-[#929a97]">
                     {item.quantity}
                   </p>
                 </div>
 
                 {/* Price */}
-                <span className="mr-3 text-[11px] font-semibold text-[#252a28]">
+                <span className="mr-3 text-[16px] font-semibold text-[#252a28]">
                   ₹{item.price.toFixed(2)}
                 </span>
 
                 {/* Delete */}
                 <button
+              
                   onClick={() => handleDeleteItem(item.id)}
                   className="text-[#f06d4f]"
                 >
                   <Trash2
-                    size={13}
+                    size={18}
                     strokeWidth={1.8}
                   />
                 </button>

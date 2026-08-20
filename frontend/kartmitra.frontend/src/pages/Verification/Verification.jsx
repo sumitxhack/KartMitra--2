@@ -1,4 +1,4 @@
-import { AlertCircle, Package, Clock } from "lucide-react";
+import { AlertCircle, Package } from "lucide-react";
 import { useState, useEffect } from "react";
 
 const Verification = () => {
@@ -24,28 +24,20 @@ const Verification = () => {
     icon: "🛒",
   };
 
-  const handleCorrectIt = () => {
-    console.log("Correcting item");
-    // TODO: Handle item correction logic
-  };
 
   const handleContactStaff = () => {
     console.log("Contacting staff");
     // TODO: Handle contact staff logic
   };
 
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  };
+ 
 
   return (
     <div className="min-h-screen bg-[#f4f8f6] flex items-center justify-center p-0 sm:p-6">
       {/* Mobile App Screen */}
       <main className="relative w-full min-h-screen sm:min-h-211 sm:max-w-97.5 overflow-hidden bg-[#f5e6d3] sm:rounded-[42px] sm:border-8 sm:border-[#151a19] shadow-2xl">
         {/* Content */}
-        <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-5 pt-6 pb-5 sm:min-h-207 sm:px-7 sm:pt-8">
+        <div className="relative z-10 flex min-h-screen flex-col items-center px-5 pt-15 pb-5 sm:min-h-207 sm:px-7 sm:pt-8">
           {/* Alert Icon */}
           <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-[#ff6b35] shadow-lg">
             <AlertCircle size={48} className="text-white" strokeWidth={1.5} />
@@ -57,8 +49,11 @@ const Verification = () => {
           </h1>
 
           {/* Mismatch Message */}
-          <p className="mb-6 text-center text-[13px] text-[#666666]">
-            We detected a mismatch
+          <p className="mb-3 text-center text-[13px] text-[#666666]">
+            There is a little Mismatch
+          </p>
+          <p className="mb-4 text-center text-[13px] text-[#666666]">
+           Please check the item and Contact Staff
           </p>
 
           {/* Items Comparison Card */}
@@ -93,32 +88,19 @@ const Verification = () => {
           </div>
 
           {/* Check Item Message */}
-          <p className="mb-4 text-center text-[13px] text-[#666666]">
-            Please check the item
-          </p>
+          
 
-          {/* Timer */}
-          <div className="mb-8 text-center">
-            <div className="text-[42px] font-bold text-[#ff6b35]">
-              {formatTime(timeLeft)}
-            </div>
-          </div>
+          
 
-          {/* Correct It Button */}
-          <button
-            onClick={handleCorrectIt}
-            className="w-full h-12 rounded-2xl bg-[#ff6b35] text-white text-[16px] font-bold transition-all duration-200 hover:bg-[#f55a25] active:scale-[0.98] shadow-md hover:shadow-lg mb-4"
-          >
-            I'll Correct It
-          </button>
+          
 
           {/* Contact Staff Link */}
           <button
             onClick={handleContactStaff}
             className="flex items-center gap-2 text-[#ff6b35] text-[14px] font-semibold hover:underline"
           >
-            <span>📞</span>
-            Contact Staff
+            
+            
           </button>
         </div>
       </main>
