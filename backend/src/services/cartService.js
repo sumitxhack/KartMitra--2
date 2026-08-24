@@ -36,6 +36,8 @@ export const createCart = async () => {
   return cart;
 };
 
+
+
 export const getCartBySessionId = async (sessionId) => {
   const cart = await Cart.findOne({ sessionId }).populate(
     "items.product"

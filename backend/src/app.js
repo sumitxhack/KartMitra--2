@@ -10,6 +10,7 @@ import checkoutRoutes from "./routes/checkoutRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import exitRoutes from "./routes/exitRoutes.js";
 import cameraVerificationRoutes from "./routes/cameraVerificationRoutes.js";
+import entranceRoutes from "./routes/entranceRoutes.js";
 
 dotenv.config();
 
@@ -36,6 +37,7 @@ app.use("/api/checkout", checkoutRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/exit", exitRoutes);
 app.use("/api/camera", cameraVerificationRoutes);
+app.use("/api/entrance", entranceRoutes);
 
 
 

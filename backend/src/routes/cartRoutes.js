@@ -14,28 +14,7 @@ import {
 
 const router = express.Router();
 
-/**
- * POST /api/carts
- * Create a new shopping cart/session.
- */
-router.post("/", async (req, res) => {
-  try {
-    const cart = await createCart();
 
-    return res.status(201).json({
-      success: true,
-      message: "Cart created successfully",
-      data: cart,
-    });
-  } catch (error) {
-    console.error("Create cart error:", error);
-
-    return res.status(error.statusCode || 500).json({
-      success: false,
-      message: error.message || "Failed to create cart",
-    });
-  }
-});
 
 /**
  * GET /api/carts/:sessionId
