@@ -10,36 +10,39 @@ import ProductSummary from "./pages/ProductSummary/ProductSummary";
 import Payment from "./pages/Payment/Payment";
 import Verification from "./pages/Verification/Verification";
 import ThankYou from "./pages/ThankYou/ThankYou";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
 
-        {/* Entrance QR Display */}
-        <Route path="/" element={<EntranceQR />} />
+  {/* Public */}
+  <Route path="/" element={<EntranceQR />} />
+  <Route path="/login" element={<Login />} />
 
-        {/* Existing pages */}
-        <Route path="/home" element={<Home />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/shopping" element={<Shopping />} />
-        <Route path="/scan-product" element={<ScanProduct />} />
-        <Route
-          path="/product-details"
-          element={<ProductDetails />}
-        />
-        <Route
-          path="/product-summary"
-          element={<ProductSummary />}
-        />
-        <Route path="/payment" element={<Payment />} />
-        <Route
-          path="/verification"
-          element={<Verification />}
-        />
-        <Route path="/thank-you" element={<ThankYou />} />
+  {/* Protected */}
+  <Route element={<ProtectedRoute />}>
+    <Route path="/home" element={<Home />} />
+    <Route path="/shopping" element={<Shopping />} />
+    <Route path="/scan-product" element={<ScanProduct />} />
+    <Route
+      path="/product-details"
+      element={<ProductDetails />}
+    />
+    <Route
+      path="/product-summary"
+      element={<ProductSummary />}
+    />
+    <Route path="/payment" element={<Payment />} />
+    <Route
+      path="/verification"
+      element={<Verification />}
+    />
+    <Route path="/thank-you" element={<ThankYou />} />
+  </Route>
 
-      </Routes>
+</Routes>
     </BrowserRouter>
   );
 }

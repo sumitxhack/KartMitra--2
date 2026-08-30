@@ -5,9 +5,11 @@ import { useNavigate } from "react-router-dom";
 
 import { googleLogin } from "../../api/authApi";
 import loginBg from "../../assets/login_page_bg.png";
+import { useAuth } from "../../context/AuthContext";
 
 const Login = () => {
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -23,18 +25,24 @@ const Login = () => {
         throw new Error("Google credential was not received");
       }
 
+      // Send Google credential to backend
       const result = await googleLogin(credential);
 
       console.log("Google login successful:", result);
 
+      if (!result?.data?.token || !result?.data?.user) {
+        throw new Error(
+          "Invalid authentication response from server"
+        );
+      }
+
       const { token, user } = result.data;
 
-      // Store authentication information
-      localStorage.setItem("token", token);
-      localStorage.setItem("user", JSON.stringify(user));
+      // Let AuthContext manage authentication state
+      login(token, user);
 
-      // For now, send customer to Home
-      navigate("/home");
+      // Redirect authenticated customer
+      navigate("/home", { replace: true });
     } catch (err) {
       console.error("Google login error:", err);
 
@@ -47,21 +55,21 @@ const Login = () => {
   };
 
   const handleGoogleError = () => {
+    setLoading(false);
     setError("Google login was cancelled or failed");
   };
 
   return (
     <div
-    style={{ backgroundImage: `url(${loginBg})` }}
-     className="min-h-screen bg-cover bg-center bg-no-repeat flex items-center justify-center">
-      
+      style={{
+        backgroundImage: `url(${loginBg})`,
+      }}
+      className="min-h-screen bg-cover bg-center bg-no-repeat flex items-center justify-center"
+    >
       {/* Mobile App Screen */}
-      <main className="relative w-full min-h-screen overflow-hidden  ">
-
-        
+      <main className="relative w-full min-h-screen overflow-hidden">
         {/* Content */}
         <div className="relative flex min-h-screen flex-col px-7 pt-70 pb-5 sm:min-h-207">
-
 
           {/* Heading */}
           <section>
@@ -138,47 +146,50 @@ const Login = () => {
 
           {/* Google Login */}
           <div className="mt-12 w-full">
-  {error && (
-    <p className="mb-3 text-center text-sm text-red-500">
-      {error}
-    </p>
-  )}
 
-  {loading ? (
-    <div className="flex h-12.75 w-full items-center justify-center rounded-xl border border-[#dfe3e2] bg-white text-[14px] font-semibold text-[#252b29]">
-      Signing in...
-    </div>
-  ) : (
-    <div className="flex justify-center">
-      <GoogleLogin
-        onSuccess={handleGoogleSuccess}
-        onError={handleGoogleError}
-        useOneTap
-        width="100%"
-      />
-    </div>
-  )}
-</div>
+            {/* Error */}
+            {error && (
+              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                <p className="text-center text-sm font-medium text-red-600">
+                  {error}
+                </p>
+              </div>
+            )}
 
-          {/* Divider */}
-          <div className="my-4 flex items-center gap-4">
-            <div className="h-px flex-1 bg-[#e4e8e7]" />
+            {/* Loading */}
+            {loading ? (
+              <div className="flex h-12.75 w-full items-center justify-center gap-3 rounded-xl border border-[#dfe3e2] bg-white text-[14px] font-semibold text-[#252b29]">
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#dfe3e2] border-t-[#159b7d]" />
 
-            <span className="text-[12px] font-semibold text-[#737c79]">
-              OR
-            </span>
-
-            <div className="h-px flex-1 bg-[#e4e8e7]" />
+                <span>
+                  Signing in...
+                </span>
+              </div>
+            ) : (
+              <div className="flex w-full justify-center">
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={handleGoogleError}
+                  useOneTap
+                  width="100%"
+                />
+              </div>
+            )}
           </div>
 
+        
+
           {/* Terms */}
-          <div className="text-center">
+          <div className="text-center mt-6">
             <p className="text-[11px] text-[#8a9390]">
               By continuing, you agree to our
             </p>
 
             <p className="mt-1 text-[11px] font-medium">
-              <button className="text-[#159b7d] hover:underline">
+              <button
+                type="button"
+                className="text-[#159b7d] hover:underline"
+              >
                 Terms of Service
               </button>
 
@@ -186,7 +197,10 @@ const Login = () => {
                 and
               </span>
 
-              <button className="text-[#159b7d] hover:underline">
+              <button
+                type="button"
+                className="text-[#159b7d] hover:underline"
+              >
                 Privacy Policy
               </button>
             </p>
