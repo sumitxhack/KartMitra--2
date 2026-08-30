@@ -28,7 +28,7 @@ const Login = () => {
             </p>
 
             <h1 className="mt-1 text-[45px] font-bold leading-[1.05] tracking-[-0.7px] text-[#111716]">
-              Kart{" "}
+              Kart
               <span className="text-[#159b7d]">
                 Mitra
               </span>
