@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import EntranceQR from "./pages/EntranceQR/EntranceQR";
 import Home from "./pages/Home/Home";
 import Login from "./pages/Login/Login";
+import EntryScanner from "./pages/EntryScanner/EntryScanner";
 import Shopping from "./pages/Shopping/Shopping";
 import ScanProduct from "./pages/ScanProduct/ScanProduct";
 import ProductDetails from "./pages/ProductDetails/ProductDetails";
@@ -24,6 +25,8 @@ function App() {
   {/* Protected */}
   <Route element={<ProtectedRoute />}>
     <Route path="/home" element={<Home />} />
+    <Route path="/entry-scanner" element={<EntryScanner />}
+/>
     <Route path="/shopping" element={<Shopping />} />
     <Route path="/scan-product" element={<ScanProduct />} />
     <Route

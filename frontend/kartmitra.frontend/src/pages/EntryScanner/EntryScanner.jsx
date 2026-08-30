@@ -1,47 +1,303 @@
+import { useEffect, useRef, useState } from "react";
+import { ArrowLeft } from "lucide-react";
+import { Html5Qrcode } from "html5-qrcode";
+import { useNavigate } from "react-router-dom";
 
-import { ArrowLeft, Zap } from "lucide-react";
+import { scanEntranceQR } from "../../api/entranceApi";
 
 const EntryScanner = () => {
+  const navigate = useNavigate();
+
+  const scannerRef = useRef(null);
+  const processingRef = useRef(false);
+  const mountedRef = useRef(false);
+
+  const [cameraStarted, setCameraStarted] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    mountedRef.current = true;
+
+    const startScanner = async () => {
+      try {
+        setError("");
+        setCameraStarted(false);
+
+        const scanner = new Html5Qrcode(
+          "entry-qr-reader"
+        );
+
+        scannerRef.current = scanner;
+
+        /*
+         * Get available cameras.
+         */
+        const cameras =
+          await Html5Qrcode.getCameras();
+
+        if (!cameras || cameras.length === 0) {
+          throw new Error(
+            "No camera was found on this device."
+          );
+        }
+
+        /*
+         * Prefer the rear/environment camera.
+         */
+        const rearCamera =
+          cameras.find((camera) =>
+            /back|rear|environment/i.test(
+              camera.label
+            )
+          ) || cameras[0];
+
+        /*
+         * Start camera automatically.
+         *
+         * IMPORTANT:
+         * Do not set aspectRatio here.
+         * Forcing a 1:1 aspect ratio can distort
+         * the camera preview on mobile devices.
+         */
+        await scanner.start(
+          rearCamera.id,
+          {
+            fps: 10,
+
+            qrbox: {
+              width: 250,
+              height: 250,
+            },
+
+            /*
+             * No aspectRatio.
+             */
+          },
+
+          async (decodedText) => {
+            /*
+             * QR scanners can detect the same QR
+             * several times per second.
+             *
+             * This prevents multiple API requests.
+             */
+            if (processingRef.current) {
+              return;
+            }
+
+            processingRef.current = true;
+
+            try {
+              setCameraStarted(false);
+
+              /*
+               * Stop camera before making the API
+               * request and navigating away.
+               */
+              if (scannerRef.current) {
+                try {
+                  await scannerRef.current.stop();
+                } catch (stopError) {
+                  console.warn(
+                    "Camera stop warning:",
+                    stopError
+                  );
+                }
+              }
+
+              /*
+               * Send the scanned QR token
+               * to the backend.
+               */
+              const data =
+                await scanEntranceQR(
+                  decodedText
+                );
+
+              /*
+               * Backend should return:
+               *
+               * {
+               *   success: true,
+               *   sessionId: "..."
+               * }
+               */
+              if (!data?.sessionId) {
+                throw new Error(
+                  "Shopping session was not created."
+                );
+              }
+
+              /*
+               * Store shopping session.
+               */
+              localStorage.setItem(
+                "sessionId",
+                data.sessionId
+              );
+
+              /*
+               * Go directly to Shopping.
+               */
+              navigate("/shopping", {
+                replace: true,
+              });
+            } catch (scanError) {
+              console.error(
+                "Entrance QR processing error:",
+                scanError
+              );
+
+              processingRef.current = false;
+
+              if (mountedRef.current) {
+                setError(
+                  scanError?.message ||
+                    "Unable to process the QR code."
+                );
+
+                setCameraStarted(false);
+              }
+            }
+          },
+
+          /*
+           * QR scan failure callback.
+           *
+           * This runs continuously when there is
+           * no valid QR in the camera frame.
+           *
+           * We intentionally do nothing here.
+           */
+          () => {}
+        );
+
+        if (mountedRef.current) {
+          setCameraStarted(true);
+        }
+      } catch (cameraError) {
+        console.error(
+          "Camera initialization error:",
+          cameraError
+        );
+
+        if (!mountedRef.current) {
+          return;
+        }
+
+        let message =
+          "Unable to access the camera.";
+
+        if (
+          cameraError?.name ===
+          "NotAllowedError"
+        ) {
+          message =
+            "Camera permission was denied. Please allow camera access and reload the page.";
+        } else if (
+          cameraError?.name ===
+          "NotFoundError"
+        ) {
+          message =
+            "No camera was found on this device.";
+        } else if (
+          cameraError?.name ===
+          "NotReadableError"
+        ) {
+          message =
+            "The camera is already being used by another application.";
+        } else if (
+          cameraError?.message
+        ) {
+          message = cameraError.message;
+        }
+
+        setError(message);
+      }
+    };
+
+    /*
+     * Automatically start camera
+     * when EntryScanner opens.
+     */
+    startScanner();
+
+    /*
+     * Cleanup when leaving EntryScanner.
+     */
+    return () => {
+      mountedRef.current = false;
+
+      const cleanupScanner = async () => {
+        const scanner =
+          scannerRef.current;
+
+        if (!scanner) {
+          return;
+        }
+
+        try {
+          await scanner.stop();
+        } catch (stopError) {
+          console.warn(
+            "Scanner stop warning:",
+            stopError
+          );
+        }
+
+        try {
+          scanner.clear();
+        } catch (clearError) {
+          console.warn(
+            "Scanner clear warning:",
+            clearError
+          );
+        }
+
+        scannerRef.current = null;
+      };
+
+      cleanupScanner();
+    };
+  }, [navigate]);
+
   const handleBack = () => {
-    window.history.back();
+    navigate(-1);
   };
 
-  const handleScanner = () => {
-    // Later:
-    // 1. Open device camera
-    // 2. Scan entrance QR
-    // 3. Send QR/session information to backend
-    console.log("Opening QR scanner...");
+  const handleRetry = () => {
+    window.location.reload();
   };
 
   return (
-    <main className="min-h-screen bg-[#e9eceb] flex items-center justify-center sm:p-6">
+    <main className="min-h-screen bg-[#151e1b] text-white">
       <div
         className="
           relative
-          flex
-          h-screen
+          mx-auto
+          min-h-screen
           w-full
-          flex-col
+          max-w-md
           overflow-hidden
-          bg-[#0c1210]
-          sm:h-[844px]
-          sm:w-[390px]
-          sm:rounded-[40px]
-          sm:border-[7px]
-          sm:border-[#171c1a]
-          sm:shadow-2xl
+          bg-[#151e1b]
         "
       >
-       
-        
-
-        {/* ================================
+        {/* --------------------------------
             HEADER
-        ================================= */}
-
-        <header className="relative z-30 flex h-13 items-center bg-[#151e1b] px-5">
+        -------------------------------- */}
+        <header
+          className="
+            relative
+            z-40
+            flex
+            h-13
+            items-center
+            bg-[#151e1b]
+            px-5
+          "
+        >
           <button
+            type="button"
             onClick={handleBack}
             className="
               flex
@@ -63,103 +319,196 @@ const EntryScanner = () => {
             />
           </button>
 
-          <h1 className="absolute left-1/2 -translate-x-1/2 text-[13px] font-medium text-white">
-            Welcome
+          <h1
+            className="
+              absolute
+              left-1/2
+              -translate-x-1/2
+              text-[13px]
+              font-medium
+            "
+          >
+            Scan to Enter
           </h1>
         </header>
 
-        {/* ================================
+        {/* --------------------------------
             SCANNER AREA
-        ================================= */}
-
-        <section className="flex flex-col items-center">
-
-          {/* Camera background */}
+        -------------------------------- */}
+        <section
+          className="
+            relative
+            min-h-[calc(100vh-52px)]
+            overflow-hidden
+            bg-[#111816]
+          "
+        >
+          {/* Camera */}
           <div
+            id="entry-qr-reader"
             className="
               absolute
               inset-0
-              bg-[radial-gradient(circle_at_center,rgba(35,53,47,0.28),transparent_55%)]
+              z-10
+              h-full
+              w-full
+              overflow-hidden
             "
           />
 
-          {/* Scanner frame */}
+          
+          <style>
+            {`
+              #entry-qr-reader video {
+                width: 100% !important;
+                height: 100% !important;
+                object-fit: cover !important;
+                object-position: center center !important;
+              }
+
+              #entry-qr-reader {
+                border: none !important;
+              }
+
+              #entry-qr-reader img {
+                display: none !important;
+              }
+
+              #entry-qr-reader__dashboard {
+                display: none !important;
+              }
+
+              #entry-qr-reader__dashboard_section {
+                display: none !important;
+              }
+
+              #entry-qr-reader__header_message {
+                display: none !important;
+              }
+
+              #entry-qr-reader__scan_region {
+                border: none !important;
+              }
+
+              #entry-qr-reader__scan_region > img {
+                display: none !important;
+              }
+            `}
+          </style>
+
+          {/* Dark overlay */}
+          <div
+            className="
+              pointer-events-none
+              absolute
+              inset-0
+              z-20
+              bg-black/25
+            "
+          />
+
+        
+          {/* --------------------------------
+              INSTRUCTIONS
+          -------------------------------- */}
           <div
             className="
               absolute
-              top-50
-              h-70
-              w-70
-            
+              left-0
+              right-0
+              top-[calc(50%+150px)]
+              z-30
+              px-6
+              text-center
             "
           >
+            <p
+              className="
+                text-sm
+                font-medium
+                text-white
+              "
+            >
+              {cameraStarted
+                ? "Align the KartMitra QR inside the frame"
+                : error
+                  ? "Camera unavailable"
+                  : "Starting camera..."}
+            </p>
 
-            {/* Top left */}
-            <span className="absolute left-0 top-0 h-[20px] w-[3px] bg-[#0b806d]" />
-            <span className="absolute left-0 top-0 h-[3px] w-[20px] bg-[#0b806d]" />
-
-            {/* Top right */}
-            <span className="absolute right-0 top-0 h-[20px] w-[3px] bg-[#0b806d]" />
-            <span className="absolute right-0 top-0 h-[3px] w-[20px] bg-[#0b806d]" />
-
-            {/* Bottom left */}
-            <span className="absolute bottom-0 left-0 h-[20px] w-[3px] bg-[#0b806d]" />
-            <span className="absolute bottom-0 left-0 h-[3px] w-[20px] bg-[#0b806d]" />
-
-            {/* Bottom right */}
-            <span className="absolute bottom-0 right-0 h-[20px] w-[3px] bg-[#0b806d]" />
-            <span className="absolute bottom-0 right-0 h-[3px] w-[20px] bg-[#0b806d]" />
+            <p
+              className="
+                mt-2
+                text-xs
+                text-[#929b98]
+              "
+            >
+              Scan the QR displayed at the entrance
+            </p>
           </div>
 
-        
+          {/* --------------------------------
+              ERROR
+          -------------------------------- */}
+          {error && (
+            <div
+              className="
+                absolute
+                bottom-8
+                left-5
+                right-5
+                z-50
+                rounded-2xl
+                border
+                border-red-400/20
+                bg-black/75
+                p-4
+                text-center
+                backdrop-blur-md
+              "
+            >
+              <p
+                className="
+                  text-sm
+                  font-medium
+                  text-red-300
+                "
+              >
+                Camera Error
+              </p>
 
-          {/* ================================
-              INSTRUCTION
-          ================================= */}
+              <p
+                className="
+                  mt-2
+                  text-xs
+                  leading-relaxed
+                  text-slate-300
+                "
+              >
+                {error}
+              </p>
 
-          <p
-            className="
-              absolute
-              top-100
-              text-center
-              text-[11px]
-              font-normal
-              text-[#929b98]
-            "
-          >
-            Align barcode inside the frame
-          </p>
-
-          {/* ================================
-              CAMERA BUTTON
-          ================================= */}
-
-          <button
-            onClick={handleScanner}
-            aria-label="Start scanner"
-            className="
-              absolute
-              bottom-50
-              flex
-              h-[50px]
-              w-[50px]
-              items-center
-              justify-center
-              rounded-full
-              bg-[#28312e]
-              text-white
-              shadow-md
-              transition
-              hover:bg-[#34403c]
-              active:scale-90
-            "
-          >
-            <Zap
-              size={22}
-              strokeWidth={1.7}
-            />
-          </button>
-
+              <button
+                type="button"
+                onClick={handleRetry}
+                className="
+                  mt-4
+                  rounded-xl
+                  bg-[#159b7d]
+                  px-5
+                  py-2.5
+                  text-xs
+                  font-semibold
+                  text-white
+                  transition
+                  hover:bg-[#12886e]
+                  active:scale-95
+                "
+              >
+                Try Again
+              </button>
+            </div>
+          )}
         </section>
       </div>
     </main>
