@@ -20,19 +20,11 @@ const SCAN_CONFIG = {
 
 const ScanProduct = () => {
   const scannerRef = useRef(null);
-
-  // Prevent duplicate scanner starts.
   const startingRef = useRef(false);
-
-  // Prevent the same barcode from creating multiple requests.
   const scannedRef = useRef(false);
-
-  // Prevent state updates after component unmount.
   const mountedRef = useRef(true);
 
-  // Used for torch control.
   const videoTrackRef = useRef(null);
-  const torchFeatureRef = useRef(null);
 
   const [cameraError, setCameraError] = useState("");
   const [message, setMessage] = useState(
@@ -44,25 +36,11 @@ const ScanProduct = () => {
 
   /*
    * ============================================================
-   * GET CURRENT CAMERA TRACK
+   * GET CAMERA TRACK
    * ============================================================
    */
   const getCameraTrack = (scanner) => {
     try {
-      /*
-       * First try html5-qrcode's camera capabilities.
-       */
-      const capabilities =
-        scanner?.getRunningTrackCameraCapabilities?.();
-
-      if (capabilities) {
-        torchFeatureRef.current =
-          capabilities.torchFeature || null;
-      }
-
-      /*
-       * Find the actual video element created by html5-qrcode.
-       */
       const videoElement = document.querySelector(
         `#${SCANNER_ID} video`
       );
@@ -78,10 +56,7 @@ const ScanProduct = () => {
         }
       }
     } catch (error) {
-      console.warn(
-        "Unable to get camera track:",
-        error
-      );
+      console.warn("Unable to get camera track:", error);
     }
 
     return null;
@@ -89,61 +64,29 @@ const ScanProduct = () => {
 
   /*
    * ============================================================
-   * CHECK FLASHLIGHT SUPPORT
+   * DETECT TORCH
    * ============================================================
    */
   const detectTorchSupport = (scanner) => {
     try {
       const track = getCameraTrack(scanner);
 
-      /*
-       * Modern browser method.
-       *
-       * Chrome/Android commonly exposes:
-       *
-       * track.getCapabilities().torch
-       */
-      if (track?.getCapabilities) {
-        const capabilities =
-          track.getCapabilities();
-
-        if (capabilities?.torch === true) {
-          setTorchSupported(true);
-          return true;
-        }
+      if (!track) {
+        setTorchSupported(false);
+        return false;
       }
 
-      /*
-       * html5-qrcode fallback.
-       */
-      const torchFeature =
-        torchFeatureRef.current;
+      const capabilities = track.getCapabilities?.();
 
-      if (torchFeature) {
-        try {
-          const supported =
-            torchFeature().isSupported();
-
-          if (supported) {
-            setTorchSupported(true);
-            return true;
-          }
-        } catch (error) {
-          console.warn(
-            "html5-qrcode torch detection failed:",
-            error
-          );
-        }
+      if (capabilities?.torch === true) {
+        setTorchSupported(true);
+        return true;
       }
 
       setTorchSupported(false);
       return false;
     } catch (error) {
-      console.warn(
-        "Torch support detection failed:",
-        error
-      );
-
+      console.warn("Torch detection failed:", error);
       setTorchSupported(false);
       return false;
     }
@@ -162,26 +105,21 @@ const ScanProduct = () => {
     }
 
     try {
-      /*
-       * Turn flashlight off before stopping camera.
-       */
-      if (torchOn) {
-        try {
-          const track = videoTrackRef.current;
+      const track = videoTrackRef.current;
 
-          if (track?.applyConstraints) {
-            await track.applyConstraints({
-              advanced: [{ torch: false }],
-            });
-          }
+      if (track?.applyConstraints) {
+        try {
+          await track.applyConstraints({
+            advanced: [{ torch: false }],
+          });
         } catch {
           // Ignore torch cleanup errors.
         }
-
-        setTorchOn(false);
       }
+
+      setTorchOn(false);
     } catch {
-      // Ignore cleanup errors.
+      // Ignore torch cleanup errors.
     }
 
     try {
@@ -189,24 +127,20 @@ const ScanProduct = () => {
         await scanner.stop();
       }
     } catch (error) {
-      console.warn(
-        "Scanner stop warning:",
-        error
-      );
+      console.warn("Scanner stop warning:", error);
     }
 
     try {
       scanner.clear();
     } catch (error) {
-      console.warn(
-        "Scanner clear warning:",
-        error
-      );
+      console.warn("Scanner clear warning:", error);
     }
 
-    scannerRef.current = null;
+    if (scannerRef.current === scanner) {
+      scannerRef.current = null;
+    }
+
     videoTrackRef.current = null;
-    torchFeatureRef.current = null;
     startingRef.current = false;
   };
 
@@ -219,38 +153,44 @@ const ScanProduct = () => {
     try {
       setMessage("Finding product...");
 
+      console.log("Looking up barcode:", barcode);
+
       const response = await apiClient(
-        `/products/barcode/${encodeURIComponent(
-          barcode
-        )}`
+        `/products/barcode/${encodeURIComponent(barcode)}`
       );
 
-      console.log("Product found:", response);
+      console.log("Product API response:", response);
 
       /*
-       * Support either:
+       * Your apiClient may return:
        *
-       * response.data
+       * 1. response.data
        *
-       * or
+       * OR
        *
-       * response.product
+       * 2. response.data.data
        *
-       * depending on your apiClient.
+       * OR
+       *
+       * 3. response.product
+       *
+       * Handle all common cases.
        */
       const product =
+        response?.data?.data ||
+        response?.data?.product ||
         response?.data ||
         response?.product ||
-        response;
+        null;
+
+      console.log("Resolved product:", product);
 
       if (!product) {
-        throw new Error(
-          "Product not found"
-        );
+        throw new Error("Product not found");
       }
 
       /*
-       * Save product temporarily for ProductDetail.
+       * Save the complete DB product.
        */
       sessionStorage.setItem(
         "scannedProduct",
@@ -258,22 +198,39 @@ const ScanProduct = () => {
       );
 
       /*
-       * Stop camera before redirecting.
+       * IMPORTANT:
+       *
+       * Navigate immediately after successful lookup.
+       *
+       * Scanner cleanup must NOT prevent navigation.
        */
-      await stopScanner();
+      setMessage("Product found. Opening details...");
+
+      const productUrl = `/product/${encodeURIComponent(
+        barcode
+      )}`;
+
+      console.log("Navigating to:", productUrl);
 
       /*
-       * Redirect to product detail.
+       * Stop camera in background.
        */
-      window.location.href =
-        `/product/${encodeURIComponent(
-          barcode
-        )}`;
+      stopScanner().catch((error) => {
+        console.warn(
+          "Scanner cleanup before navigation:",
+          error
+        );
+      });
+
+      /*
+       * Give React/browser a moment to process the
+       * sessionStorage write, then navigate.
+       */
+      setTimeout(() => {
+        window.location.assign(productUrl);
+      }, 50);
     } catch (error) {
-      console.error(
-        "Product lookup failed:",
-        error
-      );
+      console.error("Product lookup failed:", error);
 
       scannedRef.current = false;
 
@@ -282,13 +239,9 @@ const ScanProduct = () => {
       }
 
       setMessage(
-        error?.message ||
-          "Product not found"
+        error?.message || "Product not found"
       );
 
-      /*
-       * Allow another scan after 2 seconds.
-       */
       setTimeout(() => {
         if (mountedRef.current) {
           setMessage(
@@ -301,22 +254,15 @@ const ScanProduct = () => {
 
   /*
    * ============================================================
-   * BARCODE SCANNED
+   * BARCODE SUCCESS
    * ============================================================
    */
-  const handleScanSuccess = async (
-    decodedText
-  ) => {
-    /*
-     * html5-qrcode can detect the same barcode
-     * multiple times very quickly.
-     */
+  const handleScanSuccess = async (decodedText) => {
     if (scannedRef.current) {
       return;
     }
 
-    const barcode =
-      decodedText?.trim();
+    const barcode = decodedText?.trim();
 
     if (!barcode) {
       return;
@@ -341,11 +287,6 @@ const ScanProduct = () => {
     mountedRef.current = true;
 
     const startScanner = async () => {
-      /*
-       * Important:
-       *
-       * Do not start two cameras simultaneously.
-       */
       if (
         startingRef.current ||
         scannerRef.current
@@ -361,14 +302,10 @@ const ScanProduct = () => {
         setCameraError("");
         setMessage("Opening camera...");
 
-        /*
-         * Create scanner.
-         */
         scanner = new Html5Qrcode(
           SCANNER_ID,
           {
             verbose: false,
-
             formatsToSupport: [
               Html5QrcodeSupportedFormats.QR_CODE,
               Html5QrcodeSupportedFormats.CODE_128,
@@ -386,11 +323,7 @@ const ScanProduct = () => {
         scannerRef.current = scanner;
 
         /*
-         * ======================================================
-         * FIRST ATTEMPT
-         * ======================================================
-         *
-         * Ask the browser for the rear camera.
+         * Try rear camera first.
          */
         try {
           await scanner.start(
@@ -405,18 +338,10 @@ const ScanProduct = () => {
           );
         } catch (environmentError) {
           console.warn(
-            "Environment camera failed. Trying camera list:",
+            "Environment camera failed:",
             environmentError
           );
 
-          /*
-           * ====================================================
-           * FALLBACK
-           * ====================================================
-           *
-           * Some browsers/devices don't accept the
-           * facingMode constraint.
-           */
           const cameras =
             await Html5Qrcode.getCameras();
 
@@ -429,14 +354,10 @@ const ScanProduct = () => {
             );
           }
 
-          /*
-           * Try to find the rear camera.
-           */
           const rearCamera =
             cameras.find((camera) => {
               const label =
-                camera.label?.toLowerCase() ||
-                "";
+                camera.label?.toLowerCase() || "";
 
               return (
                 label.includes("back") ||
@@ -447,8 +368,7 @@ const ScanProduct = () => {
 
           console.log(
             "Using camera:",
-            rearCamera.label,
-            rearCamera.id
+            rearCamera.label
           );
 
           await scanner.start(
@@ -459,63 +379,24 @@ const ScanProduct = () => {
           );
         }
 
-        /*
-         * Component may have been unmounted while
-         * camera was starting.
-         */
         if (!mountedRef.current) {
-          try {
-            if (scanner.isScanning) {
-              await scanner.stop();
-            }
-          } catch {}
-
-          try {
-            scanner.clear();
-          } catch {}
-
+          await stopScanner();
           return;
         }
 
-        /*
-         * Camera is now running.
-         */
         setMessage(
           "Point your camera at the product barcode"
         );
 
         /*
-         * Give the browser a moment to create
-         * the video element and attach MediaStream.
+         * Wait for video element to exist.
          */
         await new Promise((resolve) =>
-          setTimeout(resolve, 150)
+          setTimeout(resolve, 300)
         );
 
         /*
-         * ======================================================
-         * GET CAMERA TRACK
-         * ======================================================
-         */
-        const track =
-          getCameraTrack(scanner);
-
-        if (track) {
-          console.log(
-            "Camera track:",
-            track.getSettings?.()
-          );
-
-          console.log(
-            "Camera capabilities:",
-            track.getCapabilities?.()
-          );
-        }
-
-        /*
-         * ======================================================
-         * DETECT TORCH
-         * ======================================================
+         * Detect flashlight.
          */
         detectTorchSupport(scanner);
       } catch (error) {
@@ -540,11 +421,6 @@ const ScanProduct = () => {
 
     startScanner();
 
-    /*
-     * ==========================================================
-     * CLEANUP
-     * ==========================================================
-     */
     return () => {
       mountedRef.current = false;
 
@@ -583,7 +459,6 @@ const ScanProduct = () => {
         }
 
         videoTrackRef.current = null;
-        torchFeatureRef.current = null;
         startingRef.current = false;
       };
 
@@ -605,139 +480,54 @@ const ScanProduct = () => {
     }
 
     try {
-      /*
-       * Get the latest active camera track.
-       */
       let track =
         videoTrackRef.current;
 
       if (!track) {
-        track = getCameraTrack(
-          scanner
-        );
+        track =
+          getCameraTrack(scanner);
       }
 
       if (!track) {
         console.warn(
-          "No active camera track available for torch."
+          "No active camera track."
         );
-
         return;
       }
 
-      /*
-       * ========================================================
-       * METHOD 1 — DIRECT MEDIA TRACK
-       * ========================================================
-       *
-       * This is the preferred method.
-       *
-       * Chrome on Android and many other mobile
-       * browsers expose torch through:
-       *
-       * track.getCapabilities().torch
-       */
-      if (track.applyConstraints) {
-        const capabilities =
-          track.getCapabilities?.();
-
-        if (
-          capabilities?.torch === true
-        ) {
-          const newState =
-            !torchOn;
-
-          await track.applyConstraints({
-            advanced: [
-              {
-                torch: newState,
-              },
-            ],
-          });
-
-          setTorchOn(newState);
-
-          console.log(
-            `Flashlight ${
-              newState
-                ? "ON"
-                : "OFF"
-            }`
-          );
-
-          return;
-        }
-      }
-
-      /*
-       * ========================================================
-       * METHOD 2 — HTML5-QRCODE TORCH
-       * ========================================================
-       *
-       * Some versions of html5-qrcode expose
-       * a dedicated torch feature.
-       */
       const capabilities =
-        scanner.getRunningTrackCameraCapabilities?.();
+        track.getCapabilities?.();
 
-      const torchFeature =
-        capabilities?.torchFeature;
-
-      if (torchFeature) {
-        try {
-          const feature =
-            torchFeature();
-
-          if (
-            feature?.isSupported?.()
-          ) {
-            const newState =
-              !torchOn;
-
-            await feature.apply(
-              newState
-            );
-
-            setTorchOn(newState);
-
-            console.log(
-              `Flashlight ${
-                newState
-                  ? "ON"
-                  : "OFF"
-              }`
-            );
-
-            return;
-          }
-        } catch (error) {
-          console.warn(
-            "html5-qrcode torch failed:",
-            error
-          );
-        }
+      if (
+        capabilities?.torch !== true
+      ) {
+        setTorchSupported(false);
+        return;
       }
 
-      /*
-       * If we reach here, the browser has a camera,
-       * but the browser did not expose torch control.
-       */
-      console.warn(
-        "This browser/device does not expose torch control."
-      );
+      const newState = !torchOn;
 
-      setTorchSupported(false);
-      setTorchOn(false);
+      await track.applyConstraints({
+        advanced: [
+          {
+            torch: newState,
+          },
+        ],
+      });
+
+      setTorchOn(newState);
+
+      console.log(
+        `Flashlight ${
+          newState ? "ON" : "OFF"
+        }`
+      );
     } catch (error) {
       console.error(
         "Unable to toggle flashlight:",
         error
       );
 
-      /*
-       * Don't stop the barcode scanner if
-       * flashlight control fails.
-       */
       setTorchOn(false);
     }
   };
@@ -777,9 +567,6 @@ const ScanProduct = () => {
           sm:shadow-2xl
         "
       >
-        {/* =====================================================
-            HEADER
-        ====================================================== */}
         <header
           className="
             relative
@@ -829,11 +616,7 @@ const ScanProduct = () => {
           </h1>
         </header>
 
-        {/* =====================================================
-            SCANNER
-        ====================================================== */}
         <section className="relative flex-1 overflow-hidden bg-black">
-          {/* Camera */}
           <div
             id={SCANNER_ID}
             className="
@@ -848,7 +631,6 @@ const ScanProduct = () => {
             "
           />
 
-          {/* Dark overlay */}
           <div
             className="
               pointer-events-none
@@ -859,9 +641,6 @@ const ScanProduct = () => {
             "
           />
 
-          {/* ===================================================
-              SCANNER FRAME
-          ==================================================== */}
           <div
             className="
               pointer-events-none
@@ -875,26 +654,19 @@ const ScanProduct = () => {
               -translate-y-1/2
             "
           >
-            {/* Top left */}
             <span className="absolute left-0 top-0 h-[20px] w-[3px] bg-[#0b806d]" />
             <span className="absolute left-0 top-0 h-[3px] w-[20px] bg-[#0b806d]" />
 
-            {/* Top right */}
             <span className="absolute right-0 top-0 h-[20px] w-[3px] bg-[#0b806d]" />
             <span className="absolute right-0 top-0 h-[3px] w-[20px] bg-[#0b806d]" />
 
-            {/* Bottom left */}
             <span className="absolute bottom-0 left-0 h-[20px] w-[3px] bg-[#0b806d]" />
             <span className="absolute bottom-0 left-0 h-[3px] w-[20px] bg-[#0b806d]" />
 
-            {/* Bottom right */}
             <span className="absolute bottom-0 right-0 h-[20px] w-[3px] bg-[#0b806d]" />
             <span className="absolute bottom-0 right-0 h-[3px] w-[20px] bg-[#0b806d]" />
           </div>
 
-          {/* ===================================================
-              MESSAGE
-          ==================================================== */}
           {cameraError ? (
             <p
               className="
@@ -932,9 +704,6 @@ const ScanProduct = () => {
             </p>
           )}
 
-          {/* ===================================================
-              FLASHLIGHT
-          ==================================================== */}
           <button
             type="button"
             onClick={toggleTorch}
@@ -979,9 +748,6 @@ const ScanProduct = () => {
             )}
           </button>
 
-          {/* ===================================================
-              TORCH MESSAGE
-          ==================================================== */}
           {!torchSupported && (
             <p
               className="
