@@ -6,149 +6,171 @@ import {
   ScanLine,
   ArrowRight,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+
+import {
+  getCart,
+  removeProductFromCart,
+} from "../../api/cartApi";
 
 const Shopping = () => {
+  const navigate = useNavigate();
+
   const videoRef = useRef(null);
+  const streamRef = useRef(null);
+
+  const [sessionId, setSessionId] = useState("");
+  const [recentItems, setRecentItems] = useState([]);
+
+  const [cartCount, setCartCount] = useState(0);
+  const [cartTotal, setCartTotal] = useState(0);
+
+  const [loading, setLoading] = useState(true);
   const [cameraError, setCameraError] = useState(false);
+  const [cartError, setCartError] = useState("");
 
-  const [sessionId] = useState("A82F91");
+  // --------------------------------
+  // LOAD SESSION
+  // --------------------------------
 
-  const [recentItems, setRecentItems] = useState([
-    {
-      id: 1,
-      name: "Amul Taaza Milk",
-      quantity: "1 L",
-      price: 62,
-      icon: "🥛",
-    },
-    {
-      id: 2,
-      name: "Brown Bread",
-      quantity: "400 g",
-      price: 40,
-      icon: "🍞",
-    },
-    {
-      id: 1,
-      name: "Amul Taaza Milk",
-      quantity: "1 L",
-      price: 62,
-      icon: "🥛",
-    },
-    {
-      id: 2,
-      name: "Brown Bread",
-      quantity: "400 g",
-      price: 40,
-      icon: "🍞",
-    },
-    {
-      id: 1,
-      name: "Amul Taaza Milk",
-      quantity: "1 L",
-      price: 62,
-      icon: "🥛",
-    },
-    {
-      id: 2,
-      name: "Brown Bread",
-      quantity: "400 g",
-      price: 40,
-      icon: "🍞",
-    },
-    {
-      id: 1,
-      name: "Amul Taaza Milk",
-      quantity: "1 L",
-      price: 62,
-      icon: "🥛",
-    },
-    {
-      id: 2,
-      name: "Brown Bread",
-      quantity: "400 g",
-      price: 40,
-      icon: "🍞",
-    },
-    {
-      id: 1,
-      name: "Amul Taaza Milk",
-      quantity: "1 L",
-      price: 62,
-      icon: "🥛",
-    },
-    {
-      id: 2,
-      name: "Brown Bread",
-      quantity: "400 g",
-      price: 40,
-      icon: "🍞",
-    },
-    {
-      id: 1,
-      name: "Amul Taaza Milk",
-      quantity: "1 L",
-      price: 62,
-      icon: "🥛",
-    },
-    {
-      id: 2,
-      name: "Brown Bread",
-      quantity: "400 g",
-      price: 40,
-      icon: "🍞",
-    },
-    {
-      id: 1,
-      name: "Amul Taaza Milk",
-      quantity: "1 L",
-      price: 62,
-      icon: "🥛",
-    },
-    {
-      id: 2,
-      name: "Brown Bread",
-      quantity: "400 g",
-      price: 40,
-      icon: "🍞",
-    },
-  ]);
+  useEffect(() => {
+    const storedSessionId =
+      localStorage.getItem("sessionId");
 
-  const [cartCount] = useState(4);
-  const [cartTotal] = useState(1248);
+    if (!storedSessionId) {
+      navigate("/", { replace: true });
+      return;
+    }
+
+    setSessionId(storedSessionId);
+  }, [navigate]);
+
+  // --------------------------------
+  // LOAD CART
+  // --------------------------------
+
+  const loadCart = async () => {
+    try {
+      setLoading(true);
+      setCartError("");
+
+      const cart = await getCart();
+
+      if (!cart) {
+        throw new Error("Cart not found.");
+      }
+
+      /*
+       * Backend cart structure:
+       *
+       * cart.items
+       * cart.totalAmount
+       */
+
+      setRecentItems(
+        (cart.items || []).map((item) => ({
+          id: item._id,
+          name: item.name,
+          quantity: item.quantity,
+          price: item.totalPrice,
+          unitPrice: item.unitPrice,
+          barcode: item.barcode,
+          weight: item.totalWeight,
+          icon: "🛒",
+        }))
+      );
+
+      setCartCount(
+        (cart.items || []).reduce(
+          (total, item) => total + item.quantity,
+          0
+        )
+      );
+
+      setCartTotal(cart.totalAmount || 0);
+    } catch (error) {
+      console.error("Load cart error:", error);
+
+      setCartError(
+        error.message || "Unable to load your cart."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!sessionId) return;
+
+    loadCart();
+  }, [sessionId]);
 
   // --------------------------------
   // START PHONE CAMERA
   // --------------------------------
 
   useEffect(() => {
-    let stream;
+    let mounted = true;
 
     const startCamera = async () => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: {
-              ideal: "environment",
+        setCameraError(false);
+
+        if (
+          !navigator.mediaDevices ||
+          !navigator.mediaDevices.getUserMedia
+        ) {
+          throw new Error(
+            "Camera is not supported on this device."
+          );
+        }
+
+        const stream =
+          await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: {
+                ideal: "environment",
+              },
             },
-          },
-          audio: false,
-        });
+            audio: false,
+          });
+
+        if (!mounted) {
+          stream
+            .getTracks()
+            .forEach((track) => track.stop());
+
+          return;
+        }
+
+        streamRef.current = stream;
 
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
         }
       } catch (error) {
-        console.error("Camera permission error:", error);
-        setCameraError(true);
+        console.error(
+          "Camera permission error:",
+          error
+        );
+
+        if (mounted) {
+          setCameraError(true);
+        }
       }
     };
 
     startCamera();
 
     return () => {
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
+      mounted = false;
+
+      if (streamRef.current) {
+        streamRef.current
+          .getTracks()
+          .forEach((track) => track.stop());
+
+        streamRef.current = null;
       }
     };
   }, []);
@@ -158,35 +180,74 @@ const Shopping = () => {
   // --------------------------------
 
   const handleScanProduct = () => {
-    console.log("Opening barcode scanner...");
-
-    /*
-      Future flow:
-
-      1. Capture current cart image
-      2. Open barcode scanner
-      3. Scan product
-      4. Fetch product from backend
-      5. Show Product Details
-      6. Customer confirms "Add to Cart"
-      7. Save item against sessionId
-    */
+    navigate("/scan-product");
   };
+
+  // --------------------------------
+  // CHECKOUT
+  // --------------------------------
 
   const handleCheckout = () => {
-    console.log("Proceeding to checkout...");
+    if (cartCount === 0) {
+      return;
+    }
+
+    navigate("/product-summary");
   };
 
-  const handleDeleteItem = (id) => {
-    setRecentItems((items) =>
-      items.filter((item) => item.id !== id)
-    );
+  // --------------------------------
+  // DELETE PRODUCT
+  // --------------------------------
+
+  const handleDeleteItem = async (barcode) => {
+    try {
+      setCartError("");
+
+      const updatedCart =
+        await removeProductFromCart(barcode);
+
+      setRecentItems(
+        (updatedCart.items || []).map((item) => ({
+          id: item._id,
+          name: item.name,
+          quantity: item.quantity,
+          price: item.totalPrice,
+          unitPrice: item.unitPrice,
+          barcode: item.barcode,
+          weight: item.totalWeight,
+          icon: "🛒",
+        }))
+      );
+
+      setCartCount(
+        (updatedCart.items || []).reduce(
+          (total, item) => total + item.quantity,
+          0
+        )
+      );
+
+      setCartTotal(
+        updatedCart.totalAmount || 0
+      );
+    } catch (error) {
+      console.error(
+        "Remove product error:",
+        error
+      );
+
+      setCartError(
+        error.message ||
+          "Unable to remove product."
+      );
+    }
   };
+
+  // --------------------------------
+  // RENDER
+  // --------------------------------
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#e9edeb] sm:p-6">
-
-      {/* PHONE */}
       <div
         className="
           relative
@@ -205,7 +266,6 @@ const Shopping = () => {
         "
       >
 
-
         {/* ==========================
             HEADER
         ========================== */}
@@ -213,6 +273,7 @@ const Shopping = () => {
         <header className="relative z-20 flex h-15 items-center bg-[#151b19] px-3">
 
           <button
+            type="button"
             className="
               flex
               h-8
@@ -224,15 +285,19 @@ const Shopping = () => {
               hover:bg-white/10
             "
           >
-            <Menu size={18} strokeWidth={1.6} />
+            <Menu
+              size={18}
+              strokeWidth={1.6}
+            />
           </button>
 
           <div className="ml-auto text-[12px] text-[#727d79]">
             Session ID:{" "}
             <span className="font-semibold text-[#19a77f]">
-              {sessionId}
+              {sessionId || "Loading..."}
             </span>
           </div>
+
         </header>
 
         {/* ==========================
@@ -274,82 +339,190 @@ const Shopping = () => {
               </div>
             </div>
           )}
+
         </section>
 
         {/* ==========================
             RECENTLY ADDED
         ========================== */}
 
-        <section className="flex min-h-0 flex-1 flex-col  overflow-auto ">
+        <section className="flex min-h-0 flex-1 flex-col overflow-auto">
 
-          <h2 className="mb-2 h-15 fixed flex items-center bg-[#f8f9f8] w-full px-5 text-[15px] font-semibold text-[#68726f] rounded-b-3xl">
+          <h2
+            className="
+              mb-2
+              h-15
+              fixed
+              flex
+              w-full
+              items-center
+              rounded-b-3xl
+              bg-[#f8f9f8]
+              px-5
+              text-[15px]
+              font-semibold
+              text-[#68726f]
+            "
+          >
             Recently Added
           </h2>
 
-          {/* Items */}
-          <div className="space-y-2 mx-4 mt-15.5 mb-90 ">
+          {/* Loading */}
 
-            {recentItems.map((item) => (
-              <div
-                key={item.id}
+          {loading && (
+            <div className="mx-4 mt-20 flex justify-center py-10">
+              <div className="
+                h-8
+                w-8
+                animate-spin
+                rounded-full
+                border-3
+                border-[#dce4e1]
+                border-t-[#159779]
+              " />
+            </div>
+          )}
+
+          {/* Error */}
+
+          {!loading && cartError && (
+            <div className="mx-4 mt-20 rounded-xl bg-red-50 p-4 text-center">
+              <p className="text-sm font-medium text-red-600">
+                {cartError}
+              </p>
+
+              <button
+                onClick={loadCart}
                 className="
-                  flex
-                  h-20
-                  items-center
-                  rounded-[10px]
-                  bg-white
-                  px-2
-                  shadow-[0_2px_8px_rgba(0,0,0,0.05)]
+                  mt-3
+                  rounded-lg
+                  bg-[#159779]
+                  px-4
+                  py-2
+                  text-xs
+                  font-semibold
+                  text-white
                 "
               >
+                Try Again
+              </button>
+            </div>
+          )}
 
-                {/* Product image placeholder */}
-                <div
-                  className="
-                    flex
-                    h-16
-                    w-16
-                    shrink-0
-                    items-center
-                    justify-center
-                    rounded-lg
-                    bg-[#f5f6f5]
-                    text-[30px]
-                  "
-                >
-                  {item.icon}
-                </div>
+          {/* Empty cart */}
 
-                {/* Product info */}
-                <div className="ml-2 min-w-0 flex-1">
-                  <p className="truncate text-[15px] font-semibold text-[#252a28]">
-                    {item.name}
-                  </p>
+          {!loading &&
+            !cartError &&
+            recentItems.length === 0 && (
+              <div className="mx-4 mt-20 flex flex-col items-center justify-center py-12 text-center">
+                <ShoppingCart
+                  size={40}
+                  strokeWidth={1.4}
+                  className="text-[#aab4b0]"
+                />
 
-                  <p className="text-[12px] text-[#929a97]">
-                    {item.quantity}
-                  </p>
-                </div>
+                <p className="mt-4 text-sm font-semibold text-[#68726f]">
+                  Your cart is empty
+                </p>
 
-                {/* Price */}
-                <span className="mr-3 text-[16px] font-semibold text-[#252a28]">
-                  ₹{item.price.toFixed(2)}
-                </span>
-
-                {/* Delete */}
-                <button
-              
-                  onClick={() => handleDeleteItem(item.id)}
-                  className="text-[#f06d4f]"
-                >
-                  <Trash2
-                    size={18}
-                    strokeWidth={1.8}
-                  />
-                </button>
+                <p className="mt-1 text-xs text-[#929a97]">
+                  Scan a product to start shopping
+                </p>
               </div>
-            ))}
-          </div>
+            )}
+
+          {/* Items */}
+
+          {!loading &&
+            !cartError &&
+            recentItems.length > 0 && (
+              <div className="mx-4 mt-15.5 mb-90 space-y-2">
+
+                {recentItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className="
+                      flex
+                      h-20
+                      items-center
+                      rounded-[10px]
+                      bg-white
+                      px-2
+                      shadow-[0_2px_8px_rgba(0,0,0,0.05)]
+                    "
+                  >
+
+                    {/* Product icon */}
+
+                    <div
+                      className="
+                        flex
+                        h-16
+                        w-16
+                        shrink-0
+                        items-center
+                        justify-center
+                        rounded-lg
+                        bg-[#f5f6f5]
+                        text-[30px]
+                      "
+                    >
+                      {item.icon}
+                    </div>
+
+                    {/* Product info */}
+
+                    <div className="ml-2 min-w-0 flex-1">
+
+                      <p className="
+                        truncate
+                        text-[15px]
+                        font-semibold
+                        text-[#252a28]
+                      ">
+                        {item.name}
+                      </p>
+
+                      <p className="text-[12px] text-[#929a97]">
+                        Qty: {item.quantity}
+                      </p>
+
+                    </div>
+
+                    {/* Price */}
+
+                    <span className="
+                      mr-3
+                      text-[16px]
+                      font-semibold
+                      text-[#252a28]
+                    ">
+                      ₹{Number(item.price).toFixed(2)}
+                    </span>
+
+                    {/* Delete */}
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleDeleteItem(
+                          item.barcode
+                        )
+                      }
+                      className="text-[#f06d4f]"
+                      aria-label={`Remove ${item.name}`}
+                    >
+                      <Trash2
+                        size={18}
+                        strokeWidth={1.8}
+                      />
+                    </button>
+
+                  </div>
+                ))}
+
+              </div>
+            )}
 
           {/* ==========================
               CART / CHECKOUT
@@ -357,28 +530,31 @@ const Shopping = () => {
 
           <div
             className="
-              absolute
+              fixed
               bottom-0
-              items-center 
-              justify-center
+              flex
+              flex-col
               w-screen
-              h-50
+              items-center
+              h-53
               rounded-t-[45px]
-              pt-4
-              px-4
               bg-[#e9edeb]
+              px-4
+              pt-4
               shadow-[0_-2px_12px_rgba(0,0,0,0.04)]
             "
           >
 
             {/* Cart summary */}
-            <div className="flex items-center">
+
+            <div className="flex w-full items-center">
 
               <div
                 className="
                   flex
                   h-15
                   w-15
+                  shrink-0
                   items-center
                   justify-center
                   rounded-full
@@ -393,28 +569,48 @@ const Shopping = () => {
               </div>
 
               <div className="ml-4 flex-1">
-                <p className="text-[19px] font-semibold text-[#252a28]">
+
+                <p className="
+                  text-[19px]
+                  font-semibold
+                  text-[#252a28]
+                ">
                   My Cart
                 </p>
 
                 <p className="text-[13px] text-[#717271]">
-                  {cartCount} Items
+                  {cartCount}{" "}
+                  {cartCount === 1
+                    ? "Item"
+                    : "Items"}
                 </p>
+
               </div>
 
-              <p className="text-2xl font-bold text-[#252a28]">
-                ₹{cartTotal.toLocaleString("en-IN")}.00
+              <p className="
+                text-2xl
+                font-bold
+                text-[#252a28]
+              ">
+                ₹{Number(cartTotal).toLocaleString(
+                  "en-IN"
+                )}.00
               </p>
+
             </div>
 
             {/* Scan Product */}
+
             <button
+              type="button"
               onClick={handleScanProduct}
               className="
-                mt-4
+              mt-4
+                left-4
+                right-4
                 flex
                 h-15
-                w-full
+                w-90
                 items-center
                 justify-center
                 gap-2
@@ -437,17 +633,22 @@ const Shopping = () => {
             </button>
 
             {/* Checkout */}
+
             <button
+              type="button"
               onClick={handleCheckout}
+              disabled={cartCount === 0}
               className="
+                mt-4
                 mx-auto
-                mt-2
                 flex
                 items-center
                 gap-1
                 text-[15px]
                 font-semibold
                 text-[#159779]
+                disabled:cursor-not-allowed
+                
               "
             >
               Checkout
@@ -459,7 +660,9 @@ const Shopping = () => {
             </button>
 
           </div>
+
         </section>
+
       </div>
     </main>
   );
