@@ -23,7 +23,7 @@ function App() {
   <Route path="/login" element={<Login />} />
 
   {/* Protected */}
-  <Route element={<ProtectedRoute />}>
+  {/* <Route element={<ProtectedRoute />}> */}
     <Route path="/home" element={<Home />} />
     <Route path="/entry-scanner" element={<EntryScanner />}
 />
@@ -43,7 +43,7 @@ function App() {
       element={<Verification />}
     />
     <Route path="/thank-you" element={<ThankYou />} />
-  </Route>
+  {/* </Route> */}
 
 </Routes>
     </BrowserRouter>
