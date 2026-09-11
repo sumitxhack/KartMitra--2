@@ -4,26 +4,28 @@ import {
   Html5Qrcode,
   Html5QrcodeSupportedFormats,
 } from "html5-qrcode";
+import { useNavigate } from "react-router-dom";
 
 import apiClient from "../../api/client";
 
 const SCANNER_ID = "product-scanner";
 
 const SCAN_CONFIG = {
-  fps: 10,
+  fps: 30,
   qrbox: {
     width: 280,
-    height: 180,
+    height: 280,
   },
-  aspectRatio: 1.777778,
+  aspectRatio: 1.0,
 };
 
 const ScanProduct = () => {
+  const navigate = useNavigate();
+
   const scannerRef = useRef(null);
   const startingRef = useRef(false);
   const scannedRef = useRef(false);
   const mountedRef = useRef(true);
-
   const videoTrackRef = useRef(null);
 
   const [cameraError, setCameraError] = useState("");
@@ -39,7 +41,7 @@ const ScanProduct = () => {
    * GET CAMERA TRACK
    * ============================================================
    */
-  const getCameraTrack = (scanner) => {
+  const getCameraTrack = () => {
     try {
       const videoElement = document.querySelector(
         `#${SCANNER_ID} video`
@@ -52,11 +54,15 @@ const ScanProduct = () => {
 
         if (tracks.length > 0) {
           videoTrackRef.current = tracks[0];
+
           return tracks[0];
         }
       }
     } catch (error) {
-      console.warn("Unable to get camera track:", error);
+      console.warn(
+        "Unable to get camera track:",
+        error
+      );
     }
 
     return null;
@@ -64,19 +70,20 @@ const ScanProduct = () => {
 
   /*
    * ============================================================
-   * DETECT TORCH
+   * DETECT TORCH SUPPORT
    * ============================================================
    */
-  const detectTorchSupport = (scanner) => {
+  const detectTorchSupport = () => {
     try {
-      const track = getCameraTrack(scanner);
+      const track = getCameraTrack();
 
       if (!track) {
         setTorchSupported(false);
         return false;
       }
 
-      const capabilities = track.getCapabilities?.();
+      const capabilities =
+        track.getCapabilities?.();
 
       if (capabilities?.torch === true) {
         setTorchSupported(true);
@@ -84,10 +91,16 @@ const ScanProduct = () => {
       }
 
       setTorchSupported(false);
+
       return false;
     } catch (error) {
-      console.warn("Torch detection failed:", error);
+      console.warn(
+        "Torch detection failed:",
+        error
+      );
+
       setTorchSupported(false);
+
       return false;
     }
   };
@@ -104,16 +117,23 @@ const ScanProduct = () => {
       return;
     }
 
+    /*
+     * Turn flashlight off before stopping camera.
+     */
     try {
       const track = videoTrackRef.current;
 
       if (track?.applyConstraints) {
         try {
           await track.applyConstraints({
-            advanced: [{ torch: false }],
+            advanced: [
+              {
+                torch: false,
+              },
+            ],
           });
         } catch {
-          // Ignore torch cleanup errors.
+          // Torch cleanup can fail on unsupported browsers.
         }
       }
 
@@ -122,20 +142,35 @@ const ScanProduct = () => {
       // Ignore torch cleanup errors.
     }
 
+    /*
+     * Stop html5-qrcode.
+     */
     try {
       if (scanner.isScanning) {
         await scanner.stop();
       }
     } catch (error) {
-      console.warn("Scanner stop warning:", error);
+      console.warn(
+        "Scanner stop warning:",
+        error
+      );
     }
 
+    /*
+     * Clear scanner DOM.
+     */
     try {
       scanner.clear();
     } catch (error) {
-      console.warn("Scanner clear warning:", error);
+      console.warn(
+        "Scanner clear warning:",
+        error
+      );
     }
 
+    /*
+     * Reset refs.
+     */
     if (scannerRef.current === scanner) {
       scannerRef.current = null;
     }
@@ -146,35 +181,46 @@ const ScanProduct = () => {
 
   /*
    * ============================================================
-   * GET PRODUCT
+   * GET PRODUCT FROM DATABASE
    * ============================================================
    */
   const getProduct = async (barcode) => {
     try {
       setMessage("Finding product...");
 
-      console.log("Looking up barcode:", barcode);
-
-      const response = await apiClient(
-        `/products/barcode/${encodeURIComponent(barcode)}`
+      console.log(
+        "Looking up barcode:",
+        barcode
       );
 
-      console.log("Product API response:", response);
+      const response = await apiClient(
+        `/products/barcode/${encodeURIComponent(
+          barcode
+        )}`
+      );
+
+      console.log(
+        "Product API response:",
+        response
+      );
 
       /*
-       * Your apiClient may return:
+       * Handle common API response formats:
        *
-       * 1. response.data
+       * {
+       *   success: true,
+       *   data: product
+       * }
        *
        * OR
        *
-       * 2. response.data.data
+       * {
+       *   data: product
+       * }
        *
        * OR
        *
-       * 3. response.product
-       *
-       * Handle all common cases.
+       * product
        */
       const product =
         response?.data?.data ||
@@ -183,55 +229,81 @@ const ScanProduct = () => {
         response?.product ||
         null;
 
-      console.log("Resolved product:", product);
+      console.log(
+        "Resolved product:",
+        product
+      );
 
       if (!product) {
-        throw new Error("Product not found");
+        throw new Error(
+          "Product not found"
+        );
       }
 
       /*
-       * Save the complete DB product.
+       * Save complete product.
+       *
+       * ProductDetails will read this.
        */
       sessionStorage.setItem(
         "scannedProduct",
         JSON.stringify(product)
       );
 
+      console.log(
+        "Product saved to sessionStorage:",
+        product
+      );
+
       /*
        * IMPORTANT:
        *
-       * Navigate immediately after successful lookup.
+       * We now navigate directly to:
        *
-       * Scanner cleanup must NOT prevent navigation.
+       * /product-details
+       *
+       * NOT:
+       *
+       * /product/:barcode
        */
-      setMessage("Product found. Opening details...");
+      setMessage(
+        "Product found. Opening details..."
+      );
 
-      const productUrl = `/product/${encodeURIComponent(
-        barcode
-      )}`;
-
-      console.log("Navigating to:", productUrl);
+      console.log(
+        "Navigating to /product-details"
+      );
 
       /*
-       * Stop camera in background.
+       * Stop scanner in the background.
+       *
+       * We intentionally DO NOT await this.
+       *
+       * This prevents scanner cleanup from
+       * blocking navigation.
        */
       stopScanner().catch((error) => {
         console.warn(
-          "Scanner cleanup before navigation:",
+          "Scanner cleanup warning:",
           error
         );
       });
 
       /*
-       * Give React/browser a moment to process the
-       * sessionStorage write, then navigate.
+       * Navigate immediately.
        */
-      setTimeout(() => {
-        window.location.assign(productUrl);
-      }, 50);
+      navigate("/product-details", {
+        replace: true,
+      });
     } catch (error) {
-      console.error("Product lookup failed:", error);
+      console.error(
+        "Product lookup failed:",
+        error
+      );
 
+      /*
+       * Allow scanning again after failure.
+       */
       scannedRef.current = false;
 
       if (!mountedRef.current) {
@@ -239,9 +311,13 @@ const ScanProduct = () => {
       }
 
       setMessage(
-        error?.message || "Product not found"
+        error?.message ||
+          "Product not found"
       );
 
+      /*
+       * Reset message after 2 seconds.
+       */
       setTimeout(() => {
         if (mountedRef.current) {
           setMessage(
@@ -257,17 +333,27 @@ const ScanProduct = () => {
    * BARCODE SUCCESS
    * ============================================================
    */
-  const handleScanSuccess = async (decodedText) => {
+  const handleScanSuccess = async (
+    decodedText
+  ) => {
+    /*
+     * Prevent multiple scans while
+     * product lookup is running.
+     */
     if (scannedRef.current) {
       return;
     }
 
-    const barcode = decodedText?.trim();
+    const barcode =
+      decodedText?.trim();
 
     if (!barcode) {
       return;
     }
 
+    /*
+     * Lock scanner.
+     */
     scannedRef.current = true;
 
     console.log(
@@ -300,21 +386,36 @@ const ScanProduct = () => {
 
       try {
         setCameraError("");
-        setMessage("Opening camera...");
 
+        setMessage(
+          "Opening camera..."
+        );
+
+        /*
+         * Create scanner.
+         */
         scanner = new Html5Qrcode(
           SCANNER_ID,
           {
             verbose: false,
+
             formatsToSupport: [
               Html5QrcodeSupportedFormats.QR_CODE,
+
               Html5QrcodeSupportedFormats.CODE_128,
+
               Html5QrcodeSupportedFormats.CODE_39,
+
               Html5QrcodeSupportedFormats.CODE_93,
+
               Html5QrcodeSupportedFormats.EAN_13,
+
               Html5QrcodeSupportedFormats.EAN_8,
+
               Html5QrcodeSupportedFormats.UPC_A,
+
               Html5QrcodeSupportedFormats.UPC_E,
+
               Html5QrcodeSupportedFormats.ITF,
             ],
           }
@@ -323,7 +424,9 @@ const ScanProduct = () => {
         scannerRef.current = scanner;
 
         /*
-         * Try rear camera first.
+         * ========================================================
+         * TRY REAR CAMERA FIRST
+         * ========================================================
          */
         try {
           await scanner.start(
@@ -332,8 +435,11 @@ const ScanProduct = () => {
                 exact: "environment",
               },
             },
+
             SCAN_CONFIG,
+
             handleScanSuccess,
+
             () => {}
           );
         } catch (environmentError) {
@@ -342,6 +448,10 @@ const ScanProduct = () => {
             environmentError
           );
 
+          /*
+           * Fallback:
+           * Get all available cameras.
+           */
           const cameras =
             await Html5Qrcode.getCameras();
 
@@ -354,10 +464,14 @@ const ScanProduct = () => {
             );
           }
 
+          /*
+           * Find rear camera.
+           */
           const rearCamera =
             cameras.find((camera) => {
               const label =
-                camera.label?.toLowerCase() || "";
+                camera.label?.toLowerCase() ||
+                "";
 
               return (
                 label.includes("back") ||
@@ -373,12 +487,19 @@ const ScanProduct = () => {
 
           await scanner.start(
             rearCamera.id,
+
             SCAN_CONFIG,
+
             handleScanSuccess,
+
             () => {}
           );
         }
 
+        /*
+         * Component may have unmounted
+         * while camera was starting.
+         */
         if (!mountedRef.current) {
           await stopScanner();
           return;
@@ -389,16 +510,16 @@ const ScanProduct = () => {
         );
 
         /*
-         * Wait for video element to exist.
+         * Wait for video element.
          */
-        await new Promise((resolve) =>
-          setTimeout(resolve, 300)
-        );
+        await new Promise((resolve) => {
+          setTimeout(resolve, 300);
+        });
 
         /*
-         * Detect flashlight.
+         * Detect flashlight support.
          */
-        detectTorchSupport(scanner);
+        detectTorchSupport();
       } catch (error) {
         console.error(
           "Unable to start product scanner:",
@@ -421,6 +542,11 @@ const ScanProduct = () => {
 
     startScanner();
 
+    /*
+     * ==========================================================
+     * CLEANUP
+     * ==========================================================
+     */
     return () => {
       mountedRef.current = false;
 
@@ -432,6 +558,37 @@ const ScanProduct = () => {
       }
 
       const cleanup = async () => {
+        /*
+         * Turn flashlight off.
+         */
+        try {
+          const track =
+            videoTrackRef.current;
+
+          if (
+            track?.applyConstraints
+          ) {
+            try {
+              await track.applyConstraints(
+                {
+                  advanced: [
+                    {
+                      torch: false,
+                    },
+                  ],
+                }
+              );
+            } catch {
+              // Ignore.
+            }
+          }
+        } catch {
+          // Ignore.
+        }
+
+        /*
+         * Stop scanner.
+         */
         try {
           if (scanner.isScanning) {
             await scanner.stop();
@@ -443,6 +600,9 @@ const ScanProduct = () => {
           );
         }
 
+        /*
+         * Clear scanner.
+         */
         try {
           scanner.clear();
         } catch (error) {
@@ -483,30 +643,41 @@ const ScanProduct = () => {
       let track =
         videoTrackRef.current;
 
+      /*
+       * If track is missing,
+       * find it again.
+       */
       if (!track) {
-        track =
-          getCameraTrack(scanner);
+        track = getCameraTrack();
       }
 
       if (!track) {
         console.warn(
           "No active camera track."
         );
+
         return;
       }
 
       const capabilities =
         track.getCapabilities?.();
 
+      /*
+       * Browser/device doesn't support torch.
+       */
       if (
         capabilities?.torch !== true
       ) {
         setTorchSupported(false);
+
         return;
       }
 
       const newState = !torchOn;
 
+      /*
+       * Turn flashlight on/off.
+       */
       await track.applyConstraints({
         advanced: [
           {
@@ -540,7 +711,7 @@ const ScanProduct = () => {
   const handleBack = async () => {
     await stopScanner();
 
-    window.history.back();
+    navigate(-1);
   };
 
   /*
@@ -567,6 +738,9 @@ const ScanProduct = () => {
           sm:shadow-2xl
         "
       >
+        {/* ======================================================
+            HEADER
+        ======================================================= */}
         <header
           className="
             relative
@@ -616,13 +790,15 @@ const ScanProduct = () => {
           </h1>
         </header>
 
+        {/* ======================================================
+            CAMERA
+        ======================================================= */}
         <section className="relative flex-1 overflow-hidden bg-black">
           <div
             id={SCANNER_ID}
             className="
               absolute
               inset-0
-              h-full
               w-full
               overflow-hidden
               [&_video]:h-full
@@ -631,6 +807,7 @@ const ScanProduct = () => {
             "
           />
 
+          {/* Camera overlay */}
           <div
             className="
               pointer-events-none
@@ -641,32 +818,7 @@ const ScanProduct = () => {
             "
           />
 
-          <div
-            className="
-              pointer-events-none
-              absolute
-              left-1/2
-              top-1/2
-              z-10
-              h-[180px]
-              w-[280px]
-              -translate-x-1/2
-              -translate-y-1/2
-            "
-          >
-            <span className="absolute left-0 top-0 h-[20px] w-[3px] bg-[#0b806d]" />
-            <span className="absolute left-0 top-0 h-[3px] w-[20px] bg-[#0b806d]" />
-
-            <span className="absolute right-0 top-0 h-[20px] w-[3px] bg-[#0b806d]" />
-            <span className="absolute right-0 top-0 h-[3px] w-[20px] bg-[#0b806d]" />
-
-            <span className="absolute bottom-0 left-0 h-[20px] w-[3px] bg-[#0b806d]" />
-            <span className="absolute bottom-0 left-0 h-[3px] w-[20px] bg-[#0b806d]" />
-
-            <span className="absolute bottom-0 right-0 h-[20px] w-[3px] bg-[#0b806d]" />
-            <span className="absolute bottom-0 right-0 h-[3px] w-[20px] bg-[#0b806d]" />
-          </div>
-
+          {/* Message */}
           {cameraError ? (
             <p
               className="
@@ -704,6 +856,9 @@ const ScanProduct = () => {
             </p>
           )}
 
+          {/* ====================================================
+              FLASHLIGHT BUTTON
+          ===================================================== */}
           <button
             type="button"
             onClick={toggleTorch}
@@ -748,6 +903,7 @@ const ScanProduct = () => {
             )}
           </button>
 
+          {/* Torch unsupported message */}
           {!torchSupported && (
             <p
               className="

@@ -13,15 +13,12 @@ import {
 
 const router = express.Router();
 
-/**
+/*
  * ============================================================
+ * GET CART
+ * ============================================================
+ *
  * GET /api/carts/:sessionId
- * ============================================================
- *
- * Get the customer's current cart using the session ID
- *
- * Example:
- * GET /api/carts/550e8400-e29b-41d4-a716-446655440000
  */
 router.get("/:sessionId", async (req, res) => {
   try {
@@ -45,31 +42,35 @@ router.get("/:sessionId", async (req, res) => {
 
     return res.status(error.statusCode || 500).json({
       success: false,
-      message: error.message || "Failed to get cart",
+      message:
+        error.message || "Failed to get cart",
     });
   }
 });
 
-/**
+/*
  * ============================================================
- * POST /api/carts/:sessionId/items
+ * ADD PRODUCT TO CART
  * ============================================================
  *
- * Add one product quantity to the customer's cart.
+ * POST /api/carts/:sessionId/items
  *
  * Body:
  * {
- *   "barcode": "8901234567890"
+ *   "barcode": "8901234567890",
+ *   "quantity": 3
  * }
  *
- * The session MUST already exist.
+ * IMPORTANT:
+ * This route NEVER creates a cart.
  *
- * A cart is NOT created here.
+ * The session must already have been created
+ * by the Entry QR flow.
  */
 router.post("/:sessionId/items", async (req, res) => {
   try {
     const { sessionId } = req.params;
-    const { barcode } = req.body;
+    const { barcode, quantity } = req.body;
 
     if (!sessionId) {
       return res.status(400).json({
@@ -85,9 +86,25 @@ router.post("/:sessionId/items", async (req, res) => {
       });
     }
 
+    const numericQuantity = Number(
+      quantity ?? 1
+    );
+
+    if (
+      !Number.isInteger(numericQuantity) ||
+      numericQuantity < 1
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Quantity must be a positive whole number",
+      });
+    }
+
     const cart = await addProductToCart(
       sessionId,
-      barcode.trim()
+      barcode.trim(),
+      numericQuantity
     );
 
     return res.status(200).json({
@@ -104,23 +121,18 @@ router.post("/:sessionId/items", async (req, res) => {
     return res.status(error.statusCode || 500).json({
       success: false,
       message:
-        error.message || "Failed to add product",
+        error.message ||
+        "Failed to add product",
     });
   }
 });
 
-/**
+/*
  * ============================================================
+ * REMOVE ONE QUANTITY
+ * ============================================================
+ *
  * DELETE /api/carts/:sessionId/items/:barcode
- * ============================================================
- *
- * Remove ONE quantity of a product from the cart.
- *
- * If quantity is greater than 1:
- *     quantity decreases by 1
- *
- * If quantity is 1:
- *     product is removed completely
  */
 router.delete(
   "/:sessionId/items/:barcode",
@@ -168,14 +180,12 @@ router.delete(
   }
 );
 
-/**
+/*
  * ============================================================
+ * START CHECKOUT
+ * ============================================================
+ *
  * POST /api/carts/:sessionId/checkout
- * ============================================================
- *
- * Start checkout for the current shopping session.
- *
- * No new cart is created here.
  */
 router.post(
   "/:sessionId/checkout",
@@ -190,7 +200,8 @@ router.post(
         });
       }
 
-      const result = await startCheckout(sessionId);
+      const result =
+        await startCheckout(sessionId);
 
       return res.status(200).json({
         success: true,
@@ -215,19 +226,19 @@ router.post(
   }
 );
 
-/**
+/*
  * ============================================================
- * POST /api/carts/:sessionId/weight
+ * VERIFY CART WEIGHT
  * ============================================================
  *
- * Verify the physical cart weight.
+ * POST /api/carts/:sessionId/weight
  *
  * Body:
  * {
  *   "actualWeight": 1000
  * }
  *
- * Weight must be supplied in grams.
+ * Weight is supplied in grams.
  */
 router.post(
   "/:sessionId/weight",
@@ -253,7 +264,8 @@ router.post(
         });
       }
 
-      const numericWeight = Number(actualWeight);
+      const numericWeight =
+        Number(actualWeight);
 
       if (
         !Number.isFinite(numericWeight) ||
@@ -266,10 +278,11 @@ router.post(
         });
       }
 
-      const result = await verifyCartWeight(
-        sessionId,
-        numericWeight
-      );
+      const result =
+        await verifyCartWeight(
+          sessionId,
+          numericWeight
+        );
 
       return res.status(200).json({
         success: true,

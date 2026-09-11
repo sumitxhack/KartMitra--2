@@ -309,7 +309,7 @@ const Shopping = () => {
             relative
             h-75
             overflow-hidden
-            rounded-b-3xl
+            rounded-b-2xl
             bg-[#414141]
           "
         >
