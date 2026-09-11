@@ -517,12 +517,21 @@ const ScanProduct = () => {
       console.error("AI camera start error:", error);
       if (!mountedRef.current) return;
 
+      const isHttpNonLocalhost =
+        typeof window !== "undefined" &&
+        window.location.protocol === "http:" &&
+        window.location.hostname !== "localhost" &&
+        window.location.hostname !== "127.0.0.1";
+
       if (
         error.name === "NotAllowedError" ||
-        error.name === "PermissionDeniedError"
+        error.name === "PermissionDeniedError" ||
+        error.name === "SecurityError"
       ) {
         setAiCameraError(
-          "Camera access permission was denied. Please allow camera permissions in your browser address bar and try again."
+          isHttpNonLocalhost
+            ? "Camera permission blocked. Mobile browsers may restrict camera on HTTP (requires HTTPS). Check site settings or Chrome '#unsafely-treat-insecure-origin-as-secure'."
+            : "Camera access permission was denied. Please allow camera permissions in your browser address bar and try again."
         );
       } else if (
         error.name === "NotFoundError" ||
@@ -744,9 +753,21 @@ const ScanProduct = () => {
       console.error("Unable to start product scanner:", error);
       if (!mountedRef.current) return;
 
-      setCameraError(
-        "Unable to access the camera. Please allow camera permission and try again."
-      );
+      const isHttpNonLocalhost =
+        typeof window !== "undefined" &&
+        window.location.protocol === "http:" &&
+        window.location.hostname !== "localhost" &&
+        window.location.hostname !== "127.0.0.1";
+
+      if (isHttpNonLocalhost && (error?.name === "NotAllowedError" || error?.name === "SecurityError" || !navigator.mediaDevices)) {
+        setCameraError(
+          "Camera access over mobile HTTP may be restricted by your mobile browser (requires HTTPS/Secure Context). Check browser site settings to allow insecure camera or enable Chrome flag '#unsafely-treat-insecure-origin-as-secure'."
+        );
+      } else {
+        setCameraError(
+          "Unable to access the camera. Please allow camera permission in browser settings and try again."
+        );
+      }
       setMessage("");
     } finally {
       startingRef.current = false;

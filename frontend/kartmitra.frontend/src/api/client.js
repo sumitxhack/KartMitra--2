@@ -2,13 +2,15 @@ export const getApiUrl = () => {
   const envUrl = import.meta.env.VITE_API_URL;
   if (typeof window !== "undefined") {
     const currentHost = window.location.hostname;
-    if (currentHost === "localhost" || currentHost === "127.0.0.1") {
+    // When accessed from mobile or remote browser using LAN IP (e.g. 192.168.x.x, 10.x.x.x)
+    if (currentHost && currentHost !== "localhost" && currentHost !== "127.0.0.1") {
+      // If envUrl is missing, or is configured for localhost or an old hardcoded IP, use currentHost
+      if (!envUrl || envUrl.includes("localhost") || envUrl.includes("127.0.0.1") || !envUrl.includes(currentHost)) {
+        return `http://${currentHost}:5000/api`;
+      }
+    } else if (currentHost === "localhost" || currentHost === "127.0.0.1") {
       if (!envUrl || (!envUrl.includes("localhost") && !envUrl.includes("127.0.0.1"))) {
         return "http://localhost:5000/api";
-      }
-    } else if (currentHost) {
-      if (!envUrl || envUrl.includes("localhost") || envUrl.includes("127.0.0.1") || envUrl.includes("10.240.19.48")) {
-        return `http://${currentHost}:5000/api`;
       }
     }
   }

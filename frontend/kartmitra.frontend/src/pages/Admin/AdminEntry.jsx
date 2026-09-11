@@ -7,10 +7,19 @@ import { isAdminAuthenticated } from "../../utils/adminAuth";
  * Uses environment variable VITE_AI_LAB_FRONTEND_URL with fallback.
  */
 const AdminEntry = () => {
-  const rawAiLabUrl =
+  let rawAiLabUrl =
     (typeof import.meta !== "undefined" &&
       import.meta?.env?.VITE_AI_LAB_FRONTEND_URL) ||
     "http://localhost:3000";
+
+  if (typeof window !== "undefined") {
+    const currentHost = window.location.hostname;
+    if (currentHost && currentHost !== "localhost" && currentHost !== "127.0.0.1") {
+      if (!rawAiLabUrl || rawAiLabUrl.includes("localhost") || rawAiLabUrl.includes("127.0.0.1") || !rawAiLabUrl.includes(currentHost)) {
+        rawAiLabUrl = `http://${currentHost}:3000`;
+      }
+    }
+  }
 
   const aiLabUrl = rawAiLabUrl.replace(/\/$/, "");
 

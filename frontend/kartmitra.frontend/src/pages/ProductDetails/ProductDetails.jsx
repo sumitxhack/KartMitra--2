@@ -242,13 +242,28 @@ const ProductDetails = () => {
    * PRODUCT FIELDS
    * ==========================================================
    */
-  const productImage =
+  const rawImage =
     product.image ||
     product.imageUrl ||
     product.imageURL ||
     product.thumbnail ||
     product.images?.[0]?.image_path ||
     "";
+
+  const productImage = (() => {
+    if (!rawImage) return "";
+    let img = rawImage;
+    if (typeof window !== "undefined" && window.location?.hostname) {
+      if (img.startsWith("http://localhost:8000")) {
+        img = img.replace("http://localhost:8000", `http://${window.location.hostname}:8000`);
+      } else if (img.startsWith("http://127.0.0.1:8000")) {
+        img = img.replace("http://127.0.0.1:8000", `http://${window.location.hostname}:8000`);
+      } else if (img.startsWith("/")) {
+        img = `http://${window.location.hostname}:8000${img}`;
+      }
+    }
+    return img;
+  })();
 
   const unitPrice = Number(product.price) || 0;
   const selectedTotal = unitPrice * quantity;
