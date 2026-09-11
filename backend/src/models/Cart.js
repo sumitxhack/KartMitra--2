@@ -2,10 +2,16 @@ import mongoose from "mongoose";
 
 const cartItemSchema = new mongoose.Schema(
   {
+    productId: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+
+    // Optional legacy compatibility field - no longer ObjectId or ref to Product
     product: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Product",
-      required: true,
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
     },
 
     name: {
@@ -104,14 +110,12 @@ const cartSchema = new mongoose.Schema(
 
     mismatchDetails: {
       scannedProduct: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Product",
+        type: mongoose.Schema.Types.Mixed,
         default: null,
       },
 
       detectedProduct: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Product",
+        type: mongoose.Schema.Types.Mixed,
         default: null,
       },
 

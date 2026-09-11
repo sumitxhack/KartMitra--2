@@ -1,5 +1,6 @@
 import { test, describe, before, after, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import mongoose from "mongoose";
 import app from "../src/app.js";
 import { verifyImageWithAi, checkAiHealth } from "../src/services/aiVerificationService.js";
 import Cart from "../src/models/Cart.js";
@@ -32,6 +33,7 @@ describe("Complete KartMitra Prototype Integration Verification Suite", () => {
     if (server) {
       await new Promise((resolve) => server.close(resolve));
     }
+    await mongoose.disconnect();
   });
 
   beforeEach(() => {

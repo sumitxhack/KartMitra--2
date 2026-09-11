@@ -1,4 +1,5 @@
 import Product from "../models/Product.js";
+import { fetchProductFromAiLab } from "../services/aiVerificationService.js";
 
 const createProduct = async (req, res) => {
   try {
@@ -109,10 +110,8 @@ const getProductByBarcode = async (req, res) => {
       });
     }
 
-    const product = await Product.findOne({
-      barcode,
-      isActive: true,
-    });
+    // Authoritative single source of truth: AI Verification Lab PostgreSQL
+    const product = await fetchProductFromAiLab(barcode);
 
     if (!product) {
       return res.status(404).json({

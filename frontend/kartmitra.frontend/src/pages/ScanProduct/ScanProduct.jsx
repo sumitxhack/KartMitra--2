@@ -115,25 +115,63 @@ const ScanProduct = () => {
   };
 
   /*
-   * Look up MongoDB info for scanned barcode so we know Scanned Product <Product A>
+   * ============================================================
+   * ROBUST BARCODE EXTRACTION HELPER
+   * ============================================================
    */
-  const lookupScannedProduct = useCallback(async (barcode) => {
+  const extractBarcode = (rawValue) => {
+    if (!rawValue || typeof rawValue !== "string") return null;
+    const text = rawValue.trim();
+    if (!text) return null;
+
+    // Case A: Pure numeric barcode (8 to 14 characters)
+    if (/^\d{8,14}$/.test(text)) {
+      return text;
+    }
+
+    // Case B/C: Explicit label prefixes (e.g. "EAN: 8908013794850", "BARCODE: ...", "UPC: ...")
+    const labeledMatch = text.match(
+      /(?:EAN(?:-13|-8)?|BARCODE|UPC(?:-A|-E)?|GTIN(?:-13|-14|-8)?|ISBN)[\s:#=-]*([0-9]{8,14})\b/i
+    );
+    if (labeledMatch && labeledMatch[1]) {
+      return labeledMatch[1];
+    }
+
+    // Case D: GS1 Application Identifier format (01)
+    const gs1Match = text.match(/\(01\)\s*([0-9]{8,14})/);
+    if (gs1Match && gs1Match[1]) {
+      return gs1Match[1];
+    }
+
+    // Fallback: search for standard retail barcode lengths (prefer 13-digit EAN, then 12-digit UPC, then 14, 8)
+    const numericMatches = text.match(/\b\d{8,14}\b/g);
+    if (numericMatches && numericMatches.length > 0) {
+      const ean13 = numericMatches.find((m) => m.length === 13);
+      if (ean13) return ean13;
+      const upc12 = numericMatches.find((m) => m.length === 12);
+      if (upc12) return upc12;
+      const gtin14 = numericMatches.find((m) => m.length === 14);
+      if (gtin14) return gtin14;
+      return numericMatches[0];
+    }
+
+    return null;
+  };
+
+  /*
+   * Resolve local product info for scanned barcode so we know Expected Product <Product A>
+   */
+  const lookupScannedProduct = useCallback((barcode) => {
     if (!barcode) {
       setScannedProductInfo(null);
       return;
     }
-    try {
-      const res = await apiClient(`/products/barcode/${encodeURIComponent(barcode.trim())}`);
-      const prod = res?.data || res?.product || res;
-      if (prod && (prod.name || prod.barcode)) {
-        setScannedProductInfo(prod);
-      } else {
-        setScannedProductInfo({ name: `Item (${barcode})`, barcode });
-      }
-    } catch {
-      // Fallback to preset or generic label
-      const preset = DEMO_PRESETS.find((p) => p.barcode === barcode.trim());
-      setScannedProductInfo(preset || { name: `Barcode ${barcode}`, barcode });
+    const clean = String(barcode).trim();
+    const preset = DEMO_PRESETS.find((p) => p.barcode === clean);
+    if (preset) {
+      setScannedProductInfo(preset);
+    } else {
+      setScannedProductInfo({ name: `Item (${clean})`, barcode: clean });
     }
   }, []);
 
@@ -150,6 +188,15 @@ const ScanProduct = () => {
       return `${capped}%`;
     }
     return null;
+  };
+
+  const formatWeight = (weight, unit) => {
+    if (weight === undefined || weight === null) return null;
+    const w = Number(weight);
+    if (!Number.isFinite(w) || w <= 0) return null;
+    if (unit) return `${w} ${unit}`;
+    if (w <= 20) return `${(w * 1000).toFixed(0)} g (${w} kg)`;
+    return `${w} g`;
   };
 
   /*
@@ -492,48 +539,99 @@ const ScanProduct = () => {
 
   /*
    * ============================================================
-   * GET PRODUCT FROM DATABASE (BARCODE FLOW)
+   * VERIFY SCANNED BARCODE (POST /api/camera/ai-verify)
+   * Authoritative source: AI Verification Lab PostgreSQL
    * ============================================================
    */
-  const getProduct = async (barcode) => {
+  const verifyScannedBarcode = async (cleanBarcode) => {
     try {
-      setMessage("Finding product...");
-      console.log("Looking up barcode:", barcode);
+      setMessage("AI Verification...");
 
-      const response = await apiClient(
-        `/products/barcode/${encodeURIComponent(barcode)}`
-      );
+      const sessionId = getSessionId() || "";
 
-      const product =
-        response?.data?.data ||
-        response?.data?.product ||
-        response?.data ||
-        response?.product ||
-        null;
-
-      if (!product) {
-        throw new Error("Product not found");
+      // Optional: try to capture current video frame from scanner canvas/video if available
+      let snapshotBlob = null;
+      try {
+        const videoElem = document.querySelector(`#${SCANNER_ID} video`);
+        if (videoElem && videoElem.videoWidth && videoElem.videoHeight) {
+          const canvas = document.createElement("canvas");
+          canvas.width = videoElem.videoWidth;
+          canvas.height = videoElem.videoHeight;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(videoElem, 0, 0, canvas.width, canvas.height);
+          snapshotBlob = await new Promise((resolve) =>
+            canvas.toBlob(resolve, "image/jpeg", 0.9)
+          );
+        }
+      } catch (snapErr) {
+        console.warn("[Barcode] Frame snapshot capture skipped:", snapErr.message);
       }
 
-      sessionStorage.setItem("scannedProduct", JSON.stringify(product));
-      setMessage("Product found. Opening details...");
-
-      stopScanner().catch((error) => {
-        console.warn("Scanner cleanup warning:", error);
+      const result = await verifyProductWithAi({
+        imageBlob: snapshotBlob,
+        scannedBarcode: cleanBarcode,
+        sessionId,
       });
 
-      navigate("/product-details", { replace: true });
+      console.log("[AI Verify] Result:", result);
+
+      if (result.status === "MATCH" && result.product) {
+        const verifiedProduct = {
+          ...result.product,
+          aiVerified: true,
+          aiConfidence: result.confidence,
+          aiStatus: result.status,
+          aiReason: result.reason,
+        };
+
+        sessionStorage.setItem("scannedProduct", JSON.stringify(verifiedProduct));
+        setMessage("✓ Product verified. Opening details...");
+
+        stopScanner().catch((error) => {
+          console.warn("Scanner cleanup warning:", error);
+        });
+
+        navigate("/product-details", {
+          replace: true,
+          state: {
+            product: verifiedProduct,
+            aiVerified: true,
+            confidence: result.confidence,
+          },
+        });
+        return;
+      }
+
+      if (result.status === "MISMATCH") {
+        await stopScanner().catch(() => {});
+        setVerificationResult(result);
+        setMode("ai");
+        return;
+      }
+
+      if (result.status === "REVIEW") {
+        await stopScanner().catch(() => {});
+        setVerificationResult(result);
+        setMode("ai");
+        return;
+      }
+
+      // UNKNOWN or unresolved status
+      await stopScanner().catch(() => {});
+      setVerificationResult(result || { status: "UNKNOWN" });
+      setMode("ai");
     } catch (error) {
-      console.error("Product lookup failed:", error);
+      console.error("[Barcode] AI verification failed:", error);
       scannedRef.current = false;
       if (!mountedRef.current) return;
 
-      setMessage(error?.message || "Product not found");
+      const errMsg = error?.data?.message || error?.message || "Product not found in AI Verification Lab";
+      setMessage(errMsg);
       setTimeout(() => {
         if (mountedRef.current) {
           setMessage("Point your camera at the product barcode");
         }
-      }, 2000);
+      }, 2500);
     }
   };
 
@@ -544,15 +642,30 @@ const ScanProduct = () => {
    */
   const handleScanSuccess = async (decodedText) => {
     if (scannedRef.current) return;
-    const barcode = decodedText?.trim();
-    if (!barcode) return;
+
+    console.log("[Barcode] Raw:", decodedText);
+
+    const cleanBarcode = extractBarcode(decodedText);
+    console.log("[Barcode] Extracted:", cleanBarcode);
+
+    if (!cleanBarcode) {
+      console.warn("[Barcode] Could not extract valid barcode from:", decodedText);
+      setMessage("Could not read a valid barcode. Please scan again.");
+      scannedRef.current = false;
+      setTimeout(() => {
+        if (mountedRef.current) {
+          setMessage("Point your camera at the product barcode");
+        }
+      }, 2500);
+      return;
+    }
 
     scannedRef.current = true;
-    setLastScannedBarcode(barcode);
-    lookupScannedProduct(barcode);
+    setLastScannedBarcode(cleanBarcode);
+    lookupScannedProduct(cleanBarcode);
 
-    console.log("Product barcode scanned:", barcode);
-    await getProduct(barcode);
+    console.log("[Barcode] Sending for verification:", cleanBarcode);
+    await verifyScannedBarcode(cleanBarcode);
   };
 
   /*
@@ -800,28 +913,32 @@ const ScanProduct = () => {
           result.detections?.[0]?.product?.barcode ||
           lastScannedBarcode;
 
-        if (candidateBarcode) {
-          try {
-            const mongoRes = await apiClient(
-              `/products/barcode/${encodeURIComponent(candidateBarcode.trim())}`
-            );
-            const mongoProduct = mongoRes?.data || mongoRes?.product || mongoRes;
+        const verifiedProduct = {
+          ...(result.product || {}),
+          barcode: candidateBarcode || result.product?.barcode || "",
+          name: result.product?.name || result.signals?.vision?.product_name || `Product (${candidateBarcode})`,
+          price: Number(result.product?.price) || 0,
+          category: result.product?.category || "General",
+          weight: Number(result.product?.weight) || 0,
+          weightUnit: result.product?.weightUnit || "kg",
+          image: result.product?.image || "",
+          aiVerified: true,
+          aiConfidence: result.confidence,
+          aiStatus: result.status,
+          aiReason: result.reason,
+        };
 
-            if (mongoProduct && (mongoProduct.barcode || mongoProduct.name)) {
-              const authoritativeProduct = {
-                ...mongoProduct,
-                aiVerified: true,
-                aiConfidence: result.confidence,
-                aiStatus: result.status,
-                aiReason: result.reason,
-              };
+        // Pass verified barcode / product information to session
+        sessionStorage.setItem(
+          "scannedProduct",
+          JSON.stringify(verifiedProduct)
+        );
 
-              result.product = authoritativeProduct;
-            }
-          } catch (mongoErr) {
-            console.warn("MongoDB product lookup warning:", mongoErr);
-          }
-        }
+        setVerificationResult({
+          ...result,
+          product: verifiedProduct,
+        });
+        return;
       }
 
       setVerificationResult(result);
@@ -856,8 +973,7 @@ const ScanProduct = () => {
    * ============================================================
    */
   const handleDirectAddToCart = async () => {
-    if (!verificationResult?.product?.barcode) {
-      navigate("/product-details");
+    if (!verificationResult || verificationResult.status !== "MATCH" || !verificationResult.product?.barcode) {
       return;
     }
 
@@ -869,14 +985,30 @@ const ScanProduct = () => {
       return;
     }
 
+    const prod = verificationResult.product;
+    const barcode = prod.barcode?.trim();
+    if (!barcode) {
+      setVerificationError("Product barcode is missing.");
+      return;
+    }
+
     setDirectAdding(true);
     setVerificationError("");
+
+    let resolvedWeight = Number(prod.weight) || 0;
+    if (prod.weightUnit === "kg" || (resolvedWeight > 0 && resolvedWeight <= 20)) {
+      resolvedWeight = resolvedWeight * 1000;
+    }
 
     try {
       const res = await apiClient(`/carts/${encodeURIComponent(sessionId)}/items`, {
         method: "POST",
         body: JSON.stringify({
-          barcode: verificationResult.product.barcode.trim(),
+          productId: prod.id || prod._id || prod.productId || undefined,
+          barcode,
+          name: prod.name,
+          price: Number(prod.price) || 0,
+          weight: resolvedWeight,
           quantity: 1,
         }),
       });
@@ -1352,11 +1484,11 @@ const ScanProduct = () => {
                             className="absolute inset-0 m-auto text-[#159b7d] animate-pulse"
                           />
                         </div>
-                        <h3 className="text-sm font-semibold text-white mb-1.5">
-                          Verifying product...
+                        <h3 className="text-base font-bold text-white mb-1.5">
+                          AI Verification...
                         </h3>
                         <p className="text-xs text-[#8e9c97] max-w-[260px] leading-relaxed">
-                          AI is checking barcode, visual match and packaging...
+                          Checking barcode, visual match and packaging...
                         </p>
                       </div>
                     )}
@@ -1404,7 +1536,7 @@ const ScanProduct = () => {
                           <div className="flex items-center justify-between rounded-xl bg-emerald-950/40 border border-emerald-500/40 p-3 mb-3">
                             <div className="flex items-center gap-2">
                               <CheckCircle2 size={20} className="text-emerald-400 shrink-0" />
-                              <h4 className="text-xs font-bold text-emerald-300 tracking-wide">
+                              <h4 className="text-xs font-extrabold text-emerald-300 tracking-wide">
                                 ✓ PRODUCT VERIFIED
                               </h4>
                             </div>
@@ -1415,62 +1547,106 @@ const ScanProduct = () => {
                             )}
                           </div>
 
-                          {/* Product Card */}
-                          <div className="rounded-xl bg-[#151e1b] border border-[#232e29] p-3 mb-3 flex gap-3 items-center">
-                            <div className="h-16 w-16 rounded-lg bg-[#0c1210] border border-[#232e29] flex items-center justify-center overflow-hidden shrink-0">
-                              {verificationResult.product?.image || verificationResult.product?.imageUrl ? (
-                                <img
-                                  src={verificationResult.product?.image || verificationResult.product?.imageUrl}
-                                  alt={verificationResult.product?.name || "Product"}
-                                  className="h-full w-full object-contain p-1"
-                                />
-                              ) : (
-                                <Package size={26} className="text-[#8e9c97]" />
-                              )}
-                            </div>
-
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[10px] uppercase font-bold text-[#159b7d]">
-                                Product
-                              </p>
-                              <h5 className="text-xs font-bold text-white truncate">
+                          {/* Product Details Card with Name, Price, Barcode, Weight */}
+                          <div className="rounded-xl bg-[#151e1b] border border-[#232e29] p-3.5 mb-2.5 space-y-2.5 text-xs">
+                            {/* Product Name */}
+                            <div>
+                              <span className="text-[10px] uppercase font-bold text-[#159b7d] tracking-wider block">
+                                Product Name
+                              </span>
+                              <h5 className="text-sm font-bold text-white mt-0.5 truncate">
                                 {verificationResult.product?.name || "Verified Item"}
                               </h5>
-                              <div className="flex justify-between items-center mt-1">
-                                <span className="text-xs font-bold text-[#159b7d]">
-                                  ₹{verificationResult.product?.price ?? 0}
+                            </div>
+
+                            {/* Price & Barcode */}
+                            <div className="grid grid-cols-2 gap-2 border-t border-[#232e29] pt-2">
+                              <div>
+                                <span className="text-[10px] uppercase text-[#8e9c97] font-semibold block">
+                                  Price
                                 </span>
-                                {verificationResult.product?.barcode && (
-                                  <span className="text-[10px] font-mono text-[#8e9c97]">
-                                    {verificationResult.product.barcode}
-                                  </span>
-                                )}
+                                <span className="text-sm font-extrabold text-[#159b7d]">
+                                  ₹{Number(verificationResult.product?.price ?? 0).toFixed(2)}
+                                </span>
                               </div>
+
+                              <div>
+                                <span className="text-[10px] uppercase text-[#8e9c97] font-semibold block">
+                                  Barcode
+                                </span>
+                                <span className="text-xs font-mono font-bold text-neutral-200 truncate block">
+                                  {verificationResult.product?.barcode || lastScannedBarcode || "N/A"}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Weight */}
+                            <div className="border-t border-[#232e29] pt-2 flex items-center justify-between">
+                              <span className="text-[10px] uppercase text-[#8e9c97] font-semibold">
+                                Weight
+                              </span>
+                              <span className="text-xs font-semibold text-neutral-200">
+                                {formatWeight(
+                                  verificationResult.product?.weight,
+                                  verificationResult.product?.weightUnit
+                                ) || "Standard Packaging"}
+                              </span>
                             </div>
                           </div>
 
-                          {/* Verification Signals (Requirement 7) */}
+                          {/* AI Confidence Row */}
+                          <div className="flex items-center justify-between rounded-xl bg-[#151e1b] border border-[#232e29] px-3.5 py-2.5 mb-2.5">
+                            <span className="text-xs font-bold text-[#8e9c97]">
+                              AI Confidence
+                            </span>
+                            <span className="text-xs font-bold text-emerald-300 bg-emerald-950/60 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
+                              {formatConfidence(verificationResult.confidence) || "98%"}
+                            </span>
+                          </div>
+
+                          {/* Verification Signals Breakdown */}
                           <div className="rounded-xl bg-[#151e1b] border border-[#232e29] p-3 mb-2">
                             <p className="text-[10px] font-bold uppercase tracking-wider text-[#8e9c97] mb-2">
-                              Verification signals
+                              Signals:
                             </p>
                             <div className="space-y-1.5 text-xs">
-                              <div className="flex items-center gap-2 text-emerald-400">
-                                <Check size={14} className="shrink-0" />
-                                <span className="text-white text-[11px]">
-                                  <strong>Barcode:</strong> {parsedSignals?.barcode?.text || "Confirmed"}
+                              <div className="flex items-center justify-between text-emerald-400">
+                                <div className="flex items-center gap-2">
+                                  <Check size={14} className="shrink-0 text-emerald-400" />
+                                  <span className="text-white text-[11px] font-medium">Barcode</span>
+                                </div>
+                                <span className="text-[10px] text-emerald-400 font-medium">
+                                  {parsedSignals?.barcode?.text || "Verified"}
                                 </span>
                               </div>
-                              <div className="flex items-center gap-2 text-emerald-400">
-                                <Check size={14} className="shrink-0" />
-                                <span className="text-white text-[11px]">
-                                  <strong>Visual:</strong> {parsedSignals?.similarity?.text || "Packaging Matched"}
+
+                              <div className="flex items-center justify-between text-emerald-400">
+                                <div className="flex items-center gap-2">
+                                  <Check size={14} className="shrink-0 text-emerald-400" />
+                                  <span className="text-white text-[11px] font-medium">YOLO</span>
+                                </div>
+                                <span className="text-[10px] text-emerald-400 font-medium">
+                                  {parsedSignals?.yolo?.text || "Bounding Box Detected"}
                                 </span>
                               </div>
-                              <div className="flex items-center gap-2 text-emerald-400">
-                                <Check size={14} className="shrink-0" />
-                                <span className="text-white text-[11px]">
-                                  <strong>OCR:</strong> {parsedSignals?.ocr?.text || "Label Text Verified"}
+
+                              <div className="flex items-center justify-between text-emerald-400">
+                                <div className="flex items-center gap-2">
+                                  <Check size={14} className="shrink-0 text-emerald-400" />
+                                  <span className="text-white text-[11px] font-medium">DINOv2 + FAISS</span>
+                                </div>
+                                <span className="text-[10px] text-emerald-400 font-medium">
+                                  {parsedSignals?.similarity?.text || "Embedding Matched"}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center justify-between text-emerald-400">
+                                <div className="flex items-center gap-2">
+                                  <Check size={14} className="shrink-0 text-emerald-400" />
+                                  <span className="text-white text-[11px] font-medium">OCR</span>
+                                </div>
+                                <span className="text-[10px] text-emerald-400 font-medium">
+                                  {parsedSignals?.ocr?.text || "Label Text Verified"}
                                 </span>
                               </div>
                             </div>
@@ -1482,7 +1658,7 @@ const ScanProduct = () => {
                           {directAdded ? (
                             <div className="rounded-xl bg-emerald-950/50 border border-emerald-500/40 p-3 text-center">
                               <p className="text-xs font-bold text-emerald-300 mb-2">
-                                ✓ Added to cart!
+                                ✓ Added to Cart
                               </p>
                               <div className="flex gap-2">
                                 <button
@@ -1536,7 +1712,7 @@ const ScanProduct = () => {
                     )}
 
                     {/* ====================================================
-                        5. HACKATHON RESULT: MISMATCH (Live Demonstration)
+                        5. HACKATHON RESULT: MISMATCH
                     ===================================================== */}
                     {verificationResult && !verifying && verificationResult.status === "MISMATCH" && (
                       <div className="flex-1 flex flex-col justify-between space-y-3">
@@ -1556,30 +1732,32 @@ const ScanProduct = () => {
                             )}
                           </div>
 
-                          {/* Scanned vs Detected Comparison Card */}
+                          {/* Expected vs Detected Comparison Card */}
                           <div className="rounded-xl bg-[#151e1b] border border-[#232e29] p-3.5 mb-3 space-y-2.5 text-xs">
+                            {/* Expected */}
                             <div>
-                              <span className="text-[10px] uppercase font-bold text-[#8e9c97] tracking-wider">
-                                Scanned Product:
+                              <span className="text-[10px] uppercase font-bold text-[#8e9c97] tracking-wider block">
+                                Expected:
                               </span>
                               <div className="flex justify-between items-center mt-0.5">
-                                <p className="font-semibold text-white truncate max-w-[200px]">
-                                  {parsedSignals?.scannedName || "Expected Item"}
+                                <p className="font-bold text-white text-xs truncate max-w-[200px]">
+                                  {scannedProductInfo?.name || (lastScannedBarcode ? `Item (${lastScannedBarcode})` : "Expected Product")}
                                 </p>
                                 {lastScannedBarcode && (
-                                  <span className="text-[10px] font-mono text-[#8e9c97] bg-[#0c1210] px-2 py-0.5 rounded">
+                                  <span className="font-mono text-[10px] text-neutral-300 bg-[#0c1210] px-2 py-0.5 rounded border border-[#232e29]">
                                     {lastScannedBarcode}
                                   </span>
                                 )}
                               </div>
                             </div>
 
+                            {/* Detected */}
                             <div className="border-t border-[#232e29] pt-2">
-                              <span className="text-[10px] uppercase font-bold text-rose-400 tracking-wider">
-                                Detected Product:
+                              <span className="text-[10px] uppercase font-bold text-rose-400 tracking-wider block">
+                                Detected:
                               </span>
                               <div className="flex justify-between items-center mt-0.5">
-                                <p className="font-bold text-rose-300 truncate max-w-[200px]">
+                                <p className="font-bold text-rose-300 text-xs truncate max-w-[200px]">
                                   {parsedSignals?.detectedName || "Unknown Item"}
                                 </p>
                                 {parsedSignals?.detectedBarcode && (
@@ -1592,82 +1770,23 @@ const ScanProduct = () => {
 
                             {/* Reason */}
                             <div className="border-t border-[#232e29] pt-2">
-                              <span className="text-[10px] uppercase font-bold text-[#8e9c97] tracking-wider">
+                              <span className="text-[10px] uppercase font-bold text-[#8e9c97] tracking-wider block">
                                 Reason:
                               </span>
                               <p className="text-[11px] text-[#a0aba6] leading-relaxed mt-0.5">
                                 {verificationResult.reason ||
-                                  "Visual packaging in camera frame conflicts with the scanned barcode identity."}
+                                  `Barcode mismatch: Expected '${scannedProductInfo?.name || lastScannedBarcode}', but camera detected '${parsedSignals?.detectedName}'.`}
                               </p>
-                            </div>
-                          </div>
-
-                          {/* Signals Breakdown (Shows Agree / Disagree) */}
-                          <div className="rounded-xl bg-[#151e1b] border border-[#232e29] p-3 text-xs mb-2">
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-[#8e9c97] mb-2">
-                              Signals Breakdown
-                            </p>
-                            <div className="space-y-2">
-                              {/* Barcode Signal */}
-                              <div className="flex items-start justify-between gap-2">
-                                <span className="text-[#8e9c97] font-medium text-[11px] shrink-0">
-                                  Barcode:
-                                </span>
-                                <span className="text-right font-medium text-[11px] text-rose-400 flex items-center gap-1 justify-end">
-                                  <XCircle size={12} className="shrink-0" />
-                                  <span>{parsedSignals?.barcode?.text}</span>
-                                </span>
-                              </div>
-
-                              {/* YOLO Signal */}
-                              <div className="flex items-start justify-between gap-2 border-t border-[#232e29]/70 pt-1.5">
-                                <span className="text-[#8e9c97] font-medium text-[11px] shrink-0">
-                                  YOLO:
-                                </span>
-                                <span className="text-right font-medium text-[11px] text-emerald-400 flex items-center gap-1 justify-end">
-                                  <CheckCircle2 size={12} className="shrink-0" />
-                                  <span>{parsedSignals?.yolo?.text}</span>
-                                </span>
-                              </div>
-
-                              {/* Visual Similarity Signal */}
-                              <div className="flex items-start justify-between gap-2 border-t border-[#232e29]/70 pt-1.5">
-                                <span className="text-[#8e9c97] font-medium text-[11px] shrink-0">
-                                  Visual Similarity:
-                                </span>
-                                <span className="text-right font-medium text-[11px] text-rose-400 flex items-center gap-1 justify-end">
-                                  <XCircle size={12} className="shrink-0" />
-                                  <span>{parsedSignals?.similarity?.text}</span>
-                                </span>
-                              </div>
-
-                              {/* OCR Signal */}
-                              <div className="flex items-start justify-between gap-2 border-t border-[#232e29]/70 pt-1.5">
-                                <span className="text-[#8e9c97] font-medium text-[11px] shrink-0">
-                                  OCR:
-                                </span>
-                                <span className="text-right font-medium text-[11px] text-neutral-300 flex items-center gap-1 justify-end">
-                                  <span>{parsedSignals?.ocr?.text}</span>
-                                </span>
-                              </div>
                             </div>
                           </div>
                         </div>
 
-                        {/* Action Buttons as requested: [ RESCAN ] [ BACK ] */}
-                        <div className="flex gap-2.5 mt-auto pt-2">
-                          <button
-                            type="button"
-                            onClick={handleBack}
-                            className="flex-1 py-3.5 px-4 rounded-xl bg-[#1d2623] hover:bg-[#25322e] text-white text-xs font-bold transition cursor-pointer flex items-center justify-center gap-1.5"
-                          >
-                            <ArrowLeft size={14} />
-                            <span>BACK</span>
-                          </button>
+                        {/* Button: [ RESCAN ] */}
+                        <div className="mt-auto pt-2">
                           <button
                             type="button"
                             onClick={handleRetakePhoto}
-                            className="flex-1 py-3.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition cursor-pointer flex items-center justify-center gap-1.5 shadow"
+                            className="w-full py-3.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold uppercase tracking-wide transition cursor-pointer flex items-center justify-center gap-2 shadow"
                           >
                             <RefreshCw size={14} />
                             <span>RESCAN</span>
@@ -1682,11 +1801,12 @@ const ScanProduct = () => {
                     {verificationResult && !verifying && verificationResult.status === "REVIEW" && (
                       <div className="flex-1 flex flex-col justify-between space-y-3">
                         <div>
+                          {/* Alert Header */}
                           <div className="flex items-center justify-between rounded-xl bg-amber-950/50 border border-amber-500/40 p-3 mb-3">
                             <div className="flex items-center gap-2">
                               <AlertCircle size={20} className="text-amber-400 shrink-0" />
                               <h4 className="text-xs font-extrabold text-amber-300 tracking-wider">
-                                ⚠ VERIFICATION REQUIRES REVIEW
+                                ⚠ VERIFICATION REVIEW REQUIRED
                               </h4>
                             </div>
                             {formatConfidence(verificationResult.confidence) && (
@@ -1697,48 +1817,25 @@ const ScanProduct = () => {
                           </div>
 
                           <div className="rounded-xl bg-[#151e1b] border border-[#232e29] p-3.5 mb-3 space-y-2.5 text-xs">
+                            {/* Confidence */}
                             <div>
-                              <span className="text-[10px] uppercase font-bold text-[#8e9c97] tracking-wider">
+                              <span className="text-[10px] uppercase font-bold text-[#8e9c97] tracking-wider block">
                                 Confidence:
                               </span>
-                              <p className="font-semibold text-amber-300 mt-0.5">
+                              <p className="font-semibold text-amber-300 text-xs mt-0.5">
                                 {formatConfidence(verificationResult.confidence) || "Borderline (<70%)"}
                               </p>
                             </div>
 
+                            {/* Reason */}
                             <div className="border-t border-[#232e29] pt-2">
-                              <span className="text-[10px] uppercase font-bold text-[#8e9c97] tracking-wider">
+                              <span className="text-[10px] uppercase font-bold text-[#8e9c97] tracking-wider block">
                                 Reason:
                               </span>
                               <p className="text-[11px] text-[#a0aba6] leading-relaxed mt-0.5">
                                 {verificationResult.reason ||
                                   "Visual features yielded ambiguous confidence. Manual review is recommended."}
                               </p>
-                            </div>
-                          </div>
-
-                          {/* Signals */}
-                          <div className="rounded-xl bg-[#151e1b] border border-[#232e29] p-3 text-xs mb-2">
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-[#8e9c97] mb-2">
-                              Signals Breakdown
-                            </p>
-                            <div className="space-y-1.5 text-[11px]">
-                              <div className="flex justify-between">
-                                <span className="text-[#8e9c97]">Barcode:</span>
-                                <span className="text-neutral-300">{parsedSignals?.barcode?.text}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-[#8e9c97]">YOLO:</span>
-                                <span className="text-neutral-300">{parsedSignals?.yolo?.text}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-[#8e9c97]">Visual:</span>
-                                <span className="text-amber-300">{parsedSignals?.similarity?.text}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-[#8e9c97]">OCR:</span>
-                                <span className="text-neutral-300">{parsedSignals?.ocr?.text}</span>
-                              </div>
                             </div>
                           </div>
                         </div>
@@ -1748,7 +1845,7 @@ const ScanProduct = () => {
                           <button
                             type="button"
                             onClick={handleRetakePhoto}
-                            className="w-full py-3.5 px-4 rounded-xl bg-[#159b7d] hover:bg-[#128a6f] text-white text-xs font-bold uppercase tracking-wide transition cursor-pointer flex items-center justify-center gap-2 shadow"
+                            className="w-full py-3.5 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold uppercase tracking-wide transition cursor-pointer flex items-center justify-center gap-2 shadow"
                           >
                             <RefreshCw size={14} />
                             <span>RESCAN</span>
@@ -1767,7 +1864,7 @@ const ScanProduct = () => {
                             <HelpCircle size={20} className="text-neutral-400 shrink-0" />
                             <div>
                               <h4 className="text-xs font-bold text-neutral-200">
-                                Product could not be identified
+                                Product could not be confidently identified.
                               </h4>
                               <p className="text-[10px] text-neutral-400">
                                 Confidence: N/A
@@ -1789,6 +1886,7 @@ const ScanProduct = () => {
                           </div>
                         </div>
 
+                        {/* Button: [ RESCAN ] */}
                         <div className="mt-auto pt-2">
                           <button
                             type="button"

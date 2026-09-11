@@ -1,5 +1,3 @@
-import Product from "../models/Product.js";
-
 const DEFAULT_AI_URL = "http://localhost:8000";
 const DEFAULT_TIMEOUT_MS = 15000;
 
@@ -14,6 +12,83 @@ export class AiVerificationError extends Error {
     this.details = details;
   }
 }
+
+/**
+ * Fetch product directly from AI Verification Lab PostgreSQL database.
+ * Authoritative single source of truth for products.
+ *
+ * @param {string} barcode
+ * @returns {Promise<Object|null>} Normalized product snapshot or null if not found
+ */
+export const fetchProductFromAiLab = async (barcode) => {
+  if (!barcode) return null;
+  const cleanBarcode = String(barcode).trim();
+  if (!cleanBarcode) return null;
+
+  const baseUrl = process.env.AI_VERIFICATION_URL || DEFAULT_AI_URL;
+  const url = `${baseUrl}/api/v1/products/barcode/${encodeURIComponent(cleanBarcode)}`;
+
+  console.log("[AI Verify] Barcode:", cleanBarcode);
+  console.log("[AI Verify] AI Lab URL:", url);
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+    const response = await fetch(url, {
+      method: "GET",
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (response.status === 404) {
+      console.log("[AI Verify] Product: Not found in AI Lab PostgreSQL for barcode:", cleanBarcode);
+      return null;
+    }
+
+    if (!response.ok) {
+      console.warn(`[AI Verify] AI Lab returned HTTP ${response.status} for barcode: ${cleanBarcode}`);
+      return null;
+    }
+
+    const json = await response.json();
+    const rawProd = json?.product || json?.data || json;
+
+    if (!rawProd || (!rawProd.id && !rawProd.barcode && !rawProd.name)) {
+      return null;
+    }
+
+    // Resolve primary image if present
+    let primaryImage = "";
+    if (rawProd.images && Array.isArray(rawProd.images) && rawProd.images.length > 0) {
+      const imgPath = rawProd.images[0]?.image_path || rawProd.images[0]?.path || "";
+      if (imgPath) {
+        primaryImage = imgPath.startsWith("http") ? imgPath : `${baseUrl}${imgPath}`;
+      }
+    } else if (rawProd.image) {
+      primaryImage = rawProd.image.startsWith("http") ? rawProd.image : `${baseUrl}${rawProd.image}`;
+    }
+
+    const normalizedProduct = {
+      id: rawProd.id || String(rawProd._id || ""),
+      barcode: rawProd.barcode || cleanBarcode,
+      name: rawProd.name || "Verified Product",
+      price: Number(rawProd.price) || 0,
+      category: rawProd.category || "General",
+      description: rawProd.description || "",
+      weight: Number(rawProd.weight) || 0,
+      weightUnit: rawProd.weight_unit || rawProd.weightUnit || "kg",
+      image: primaryImage,
+    };
+
+    console.log("[AI Verify] Product:", normalizedProduct.name, `(${normalizedProduct.barcode})`);
+    return normalizedProduct;
+  } catch (error) {
+    console.warn("[AI Verify] Failed to connect to AI Lab product endpoint:", error.message);
+    return null;
+  }
+};
 
 /**
  * Health check to verify whether AI Lab FastAPI backend is reachable.
@@ -62,7 +137,7 @@ export const checkAiHealth = async () => {
 /**
  * Sends image and optional session/barcode parameters to the existing AI Lab
  * unified verification scan endpoint (POST /api/v1/verification/scan),
- * then normalizes the response and maps against KartMitra MongoDB via barcode.
+ * then normalizes the response and maps against AI Verification Lab PostgreSQL via barcode.
  *
  * @param {Object} params
  * @param {Buffer} params.imageBuffer - Raw image buffer
@@ -99,6 +174,11 @@ export const verifyImageWithAi = async ({
     formData.append("session_id", String(sessionId));
   }
 
+  const cleanScannedBarcode = typeof scannedBarcode === "string" ? scannedBarcode.trim() : null;
+  if (cleanScannedBarcode) {
+    formData.append("scanned_barcode", cleanScannedBarcode);
+  }
+
   // 3. Dispatch to FastAPI with timeout & connection error guards
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -121,7 +201,6 @@ export const verifyImageWithAi = async ({
       );
     }
 
-    // Connection refused or network unreachable
     throw new AiVerificationError(
       `AI verification service is currently unavailable at ${baseUrl}: ${err.message}`,
       503,
@@ -138,7 +217,7 @@ export const verifyImageWithAi = async ({
       const errJson = await rawResponse.json();
       errorDetail = errJson.detail || errJson.message || errorDetail;
     } catch {
-      // Body not JSON
+      // Ignore
     }
 
     if (rawResponse.status === 422 || rawResponse.status === 400) {
@@ -159,7 +238,7 @@ export const verifyImageWithAi = async ({
   let aiData;
   try {
     aiData = await rawResponse.json();
-  } catch (err) {
+  } catch {
     throw new AiVerificationError("Malformed JSON response received from AI verification engine", 502);
   }
 
@@ -167,66 +246,43 @@ export const verifyImageWithAi = async ({
     throw new AiVerificationError("Malformed response: expected JSON object from AI verification engine", 502);
   }
 
-  // 6. Extract Candidate Barcode from AI Lab Result (Requirement 7)
+  // 6. Extract candidate barcode detected visually in frame
   const candidateBarcode = extractBarcodeFromAiResult(aiData);
 
-  // 7. Product Resolution & MongoDB cross-system mapping (Requirement 7 & 8)
-  let mappedProduct = null;
+  // 7. Authoritative Product Resolution from AI Verification Lab PostgreSQL
+  let expectedProduct = null;
+  let detectedProduct = null;
+
+  if (cleanScannedBarcode) {
+    expectedProduct = await fetchProductFromAiLab(cleanScannedBarcode);
+  }
 
   if (candidateBarcode) {
-    try {
-      // Look up product in KartMitra MongoDB
-      const mongoProduct = await Product.findOne({
-        barcode: candidateBarcode.trim(),
-        isActive: true,
-      });
-
-      if (mongoProduct) {
-        mappedProduct = {
-          barcode: mongoProduct.barcode,
-          name: mongoProduct.name,
-          price: Number(mongoProduct.price) || 0,
-          category: mongoProduct.category || "General",
-          image: mongoProduct.image || "",
-          weight: Number(mongoProduct.weight) || 0,
-          unit: mongoProduct.unit || "",
-          sku: mongoProduct.sku || "",
-        };
-      } else {
-        // Barcode detected by AI but not yet in KartMitra business MongoDB
-        mappedProduct = {
-          barcode: candidateBarcode.trim(),
-          name: aiData.product?.name || aiData.product_name || "Uncataloged Product",
-          price: Number(aiData.product?.price) || 0,
-          category: aiData.product?.category || "Uncategorized",
-          image: "",
-        };
-      }
-    } catch (dbErr) {
-      // Safe fallback if MongoDB has an issue
-      console.warn("[aiVerificationService] MongoDB lookup warning:", dbErr.message);
-      mappedProduct = {
-        barcode: candidateBarcode.trim(),
-        name: aiData.product?.name || aiData.product_name || "Identified Product",
-        price: Number(aiData.product?.price) || 0,
-        category: aiData.product?.category || "Uncategorized",
-        image: "",
-      };
+    if (cleanScannedBarcode && candidateBarcode.trim() === cleanScannedBarcode) {
+      detectedProduct = expectedProduct;
+    } else {
+      detectedProduct = await fetchProductFromAiLab(candidateBarcode);
     }
-  } else {
-    // Requirement 8: AI Lab returned a product WITHOUT a barcode
-    // Do not blindly map MongoDB product. Return AI result safely with unresolved mapping.
+  }
+
+  let mappedProduct = detectedProduct || expectedProduct;
+
+  if (!mappedProduct) {
     mappedProduct = {
-      barcode: null,
-      name: aiData.product?.name || aiData.product_name || (aiData.detections?.[0]?.product_name) || "Unresolved Product",
+      id: aiData.product?.id || "",
+      barcode: candidateBarcode || cleanScannedBarcode || null,
+      name: aiData.product?.name || aiData.product_name || (aiData.detections?.[0]?.product_name) || "Identified Product",
       price: Number(aiData.product?.price) || 0,
-      category: aiData.product?.category || "Uncategorized",
+      category: aiData.product?.category || "General",
+      description: aiData.product?.description || "",
+      weight: Number(aiData.product?.weight) || 0,
+      weightUnit: "kg",
       image: "",
-      mapping: "unresolved",
+      mapping: !candidateBarcode && !cleanScannedBarcode ? "unresolved" : undefined,
     };
   }
 
-  // 8. Determine Normalized Status: MATCH | MISMATCH | REVIEW | UNKNOWN (Requirement 6)
+  // 8. Determine Normalized Status: MATCH | MISMATCH | REVIEW | UNKNOWN
   let rawAiStatus = (aiData.status || aiData.frame_status || "UNKNOWN").toUpperCase().trim();
   let normalizedStatus = "UNKNOWN";
 
@@ -238,9 +294,6 @@ export const verifyImageWithAi = async ({
   let finalReason = aiData.reason || "AI verification analysis complete.";
   let recommendedAction = aiData.recommended_action || "SCAN_AGAIN";
 
-  // Check against customer's expected scannedBarcode if provided
-  const cleanScannedBarcode = typeof scannedBarcode === "string" ? scannedBarcode.trim() : null;
-
   if (cleanScannedBarcode) {
     if (candidateBarcode) {
       if (cleanScannedBarcode === candidateBarcode.trim()) {
@@ -250,14 +303,13 @@ export const verifyImageWithAi = async ({
       } else {
         // Scanned barcode differs from visual item detected in frame!
         normalizedStatus = "MISMATCH";
-        finalReason = `Barcode mismatch: Expected scanned barcode '${cleanScannedBarcode}', but camera detected '${mappedProduct.name}' (${candidateBarcode}).`;
+        finalReason = `Barcode mismatch: Expected '${expectedProduct?.name || cleanScannedBarcode}', but camera detected '${detectedProduct?.name || candidateBarcode}'.`;
         recommendedAction = "MANUAL_REVIEW";
       }
     } else {
-      // Camera could not resolve barcode from image
       if (normalizedStatus === "MATCH") {
-        // Visual/OCR match without barcode
         finalReason = `Visual match for '${mappedProduct.name}'. Verify barcode '${cleanScannedBarcode}'.`;
+        recommendedAction = "ADD_TO_CART";
       } else if (normalizedStatus === "UNKNOWN") {
         normalizedStatus = "REVIEW";
         finalReason = `Could not visually identify item for scanned barcode '${cleanScannedBarcode}'. Please reposition item in camera.`;
@@ -279,10 +331,12 @@ export const verifyImageWithAi = async ({
   const signals = aiData.signals || {};
   const confidence = typeof aiData.confidence === "number" ? Number(aiData.confidence.toFixed(3)) : 0;
 
-  // 10. Return strictly normalized KartMitra response format (Requirement 6)
+  // 10. Return strictly normalized KartMitra response format
   return {
     status: normalizedStatus,
     product: mappedProduct,
+    expectedProduct: expectedProduct,
+    detectedProduct: detectedProduct,
     confidence: confidence,
     signals: signals,
     reason: finalReason,
@@ -292,32 +346,26 @@ export const verifyImageWithAi = async ({
 };
 
 /**
- * Extracts the candidate barcode from diverse potential fields in the AI Lab response.
+ * Extracts candidate barcode from diverse potential fields in the AI Lab response.
  */
 function extractBarcodeFromAiResult(aiData) {
-  // Check primary product barcode
   if (aiData.product?.barcode && typeof aiData.product.barcode === "string") {
     return aiData.product.barcode;
   }
-  // Check signals.barcode.barcode
   if (aiData.signals?.barcode?.barcode && typeof aiData.signals.barcode.barcode === "string") {
     return aiData.signals.barcode.barcode;
   }
-  // Check top-level barcode
   if (aiData.barcode && typeof aiData.barcode === "string") {
     return aiData.barcode;
   }
-  // Check first detection's product barcode
   if (aiData.detections && Array.isArray(aiData.detections) && aiData.detections.length > 0) {
     const firstDet = aiData.detections[0];
     if (firstDet.product?.barcode) return firstDet.product.barcode;
     if (firstDet.signals?.barcode?.barcode) return firstDet.signals.barcode.barcode;
     if (firstDet.barcode) return firstDet.barcode;
   }
-  // Check cart_summary
   if (aiData.cart_summary && Array.isArray(aiData.cart_summary) && aiData.cart_summary.length > 0) {
     if (aiData.cart_summary[0].barcode) return aiData.cart_summary[0].barcode;
   }
-
   return null;
 }

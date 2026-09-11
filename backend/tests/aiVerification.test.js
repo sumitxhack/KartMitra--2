@@ -1,5 +1,6 @@
 import { test, describe, before, after, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import mongoose from "mongoose";
 import app from "../src/app.js";
 import {
   verifyImageWithAi,
@@ -36,6 +37,7 @@ describe("KartMitra <-> AI Verification Lab Integration Tests", () => {
     if (server) {
       await new Promise((resolve) => server.close(resolve));
     }
+    await mongoose.disconnect();
   });
 
   beforeEach(() => {

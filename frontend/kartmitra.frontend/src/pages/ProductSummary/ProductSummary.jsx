@@ -8,6 +8,8 @@ import {
   AlertCircle,
   ArrowRight,
   Loader2,
+  Barcode as BarcodeIcon,
+  Scale,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -24,7 +26,7 @@ const ProductSummary = () => {
 
   /*
    * ==========================================================
-   * RESOLVE SESSION ID
+   * RESOLVE ACTIVE SESSION ID
    * ==========================================================
    */
   const getActiveSessionId = () => {
@@ -40,7 +42,7 @@ const ProductSummary = () => {
       );
       if (parsed.sessionId) return parsed.sessionId.trim();
     } catch {
-      // Ignore
+      // Ignore parse errors
     }
 
     return null;
@@ -72,7 +74,7 @@ const ProductSummary = () => {
       setCart(cartData);
       setCartItems(cartData?.items || []);
 
-      // Cache updated cart in session/local storage
+      // Cache updated cart in session and local storage
       if (cartData) {
         sessionStorage.setItem("cart", JSON.stringify(cartData));
         localStorage.setItem("cart", JSON.stringify(cartData));
@@ -133,9 +135,19 @@ const ProductSummary = () => {
 
   /*
    * ==========================================================
-   * CALCULATE TOTALS
+   * FORMATTERS & TOTALS
    * ==========================================================
    */
+  const formatWeight = (grams) => {
+    const g = Number(grams);
+    if (!Number.isFinite(g) || g <= 0) return null;
+    if (g >= 1000) {
+      const kg = (g / 1000).toFixed(g % 1000 === 0 ? 0 : 2);
+      return `${kg} kg (${g} g)`;
+    }
+    return `${g} g`;
+  };
+
   const totalItemCount = cartItems.reduce(
     (sum, item) => sum + (Number(item.quantity) || 1),
     0
@@ -150,11 +162,22 @@ const ProductSummary = () => {
       .reduce((sum, item) => {
         const itemTotal =
           Number(item.totalPrice) ||
-          Number(item.unitPrice || item.price || 0) *
-            (Number(item.quantity) || 1);
+          Number(item.unitPrice || 0) * (Number(item.quantity) || 1);
         return sum + itemTotal;
       }, 0)
       .toFixed(2);
+  };
+
+  const calculateExpectedWeight = () => {
+    if (cart?.expectedWeight !== undefined && cart?.expectedWeight !== null) {
+      return formatWeight(cart.expectedWeight);
+    }
+
+    const sumGrams = cartItems.reduce(
+      (sum, item) => sum + (Number(item.totalWeight) || Number(item.unitWeight || 0) * (Number(item.quantity) || 1)),
+      0
+    );
+    return formatWeight(sumGrams);
   };
 
   /*
@@ -190,7 +213,7 @@ const ProductSummary = () => {
 
   /*
    * ==========================================================
-   * 2. ERROR STATE (IF CART FAILED TO LOAD)
+   * 2. API ERROR STATE
    * ==========================================================
    */
   if (error && cartItems.length === 0) {
@@ -297,12 +320,11 @@ const ProductSummary = () => {
 
   /*
    * ==========================================================
-   * 4. POPULATED CART VIEW (REAL DATA)
+   * 4. POPULATED CART VIEW (REAL DATA FROM API)
    * ==========================================================
    */
   return (
     <div className="min-h-screen bg-[#f4f8f6] flex items-center justify-center p-0 sm:p-6">
-      {/* Mobile App Screen */}
       <main className="relative w-full min-h-screen sm:min-h-[844px] sm:max-w-[390px] overflow-hidden bg-white sm:rounded-[42px] sm:border-8 sm:border-[#151a19] shadow-2xl flex flex-col">
         {/* Header with Back Button and Title */}
         <header className="h-16 shrink-0 bg-white px-5 sm:px-6 flex items-center gap-3 border-b border-[#f0f4f2] z-20">
@@ -331,83 +353,94 @@ const ProductSummary = () => {
         <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-4">
           <div className="space-y-3">
             {cartItems.map((item, index) => {
-              const productObj = item.product || {};
-              const productImage =
-                productObj.image ||
-                productObj.imageUrl ||
-                productObj.imageURL ||
-                item.image ||
-                "";
+              const productName = item.name || "Product";
+              const barcode = item.barcode || "";
+              const quantity = Number(item.quantity) || 1;
+              const unitPrice = Number(item.unitPrice) || 0;
+              const subtotal = Number(item.totalPrice) || unitPrice * quantity;
+              const weightDisplay = formatWeight(item.unitWeight);
+              const totalWeightDisplay = formatWeight(item.totalWeight);
 
-              const unitPrice =
-                Number(item.unitPrice ?? productObj.price ?? item.price ?? 0);
-              const subtotal =
-                Number(item.totalPrice ?? unitPrice * (item.quantity || 1));
-
-              const weightOrCategory =
-                productObj.weight && productObj.weightUnit
-                  ? `${productObj.weight} ${productObj.weightUnit}`
-                  : productObj.category || (item.barcode ? `Barcode: ${item.barcode}` : "");
-
-              const isDeletingThis = deletingBarcode === (item.barcode || productObj.barcode);
+              const isDeletingThis = deletingBarcode === barcode;
 
               return (
                 <div
-                  key={item._id || item.id || item.barcode || index}
-                  className="flex items-center gap-3.5 rounded-2xl bg-[#f7f9f8] p-3.5 transition-all duration-200 hover:bg-[#f0f4f2] border border-[#eff3f1]"
+                  key={item._id || item.id || barcode || index}
+                  className="rounded-2xl bg-[#f7f9f8] p-3.5 transition-all duration-200 hover:bg-[#f0f4f2] border border-[#eff3f1]"
                 >
-                  {/* Product Image / Icon */}
-                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-white border border-[#e8eeeb] overflow-hidden">
-                    {productImage ? (
-                      <img
-                        src={productImage}
-                        alt={item.name}
-                        className="h-full w-full object-contain p-1"
-                      />
-                    ) : (
-                      <Package size={26} className="text-[#8b9693]" />
-                    )}
-                  </div>
-
-                  {/* Product Details */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-[14px] font-semibold text-[#18201e] truncate">
-                      ({item.quantity}x) {item.name}
-                    </h3>
-                    {weightOrCategory && (
-                      <p className="text-[12px] text-[#7a8583] truncate mt-0.5">
-                        {weightOrCategory}
-                      </p>
-                    )}
-                    <div className="mt-1 flex items-baseline gap-1.5">
-                      <p className="text-[15px] font-bold text-[#111716]">
-                        ₹{subtotal.toFixed(2)}
-                      </p>
-                      {item.quantity > 1 && (
-                        <span className="text-[11px] text-[#7a8583]">
-                          (₹{unitPrice.toFixed(2)} ea)
-                        </span>
-                      )}
+                  <div className="flex items-start gap-3.5">
+                    {/* Product Icon */}
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-white border border-[#e8eeeb] overflow-hidden text-[#159b7d]">
+                      <Package size={26} />
                     </div>
-                  </div>
 
-                  {/* Delete / Decrement Button */}
-                  <div className="flex flex-col items-end gap-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleRemoveItem(item.barcode || productObj.barcode)
-                      }
-                      disabled={isDeletingThis}
-                      className="flex h-9 w-9 items-center justify-center rounded-full bg-red-50 hover:bg-red-100 transition-all duration-200 active:scale-95 disabled:opacity-40 cursor-pointer"
-                      aria-label={`Remove ${item.name} from cart`}
-                    >
-                      {isDeletingThis ? (
-                        <Loader2 size={14} className="text-red-500 animate-spin" />
-                      ) : (
-                        <Trash2 size={16} className="text-red-500" />
+                    {/* Product Details */}
+                    <div className="flex-1 min-w-0">
+                      {/* Product Name */}
+                      <h3 className="text-[14px] font-bold text-[#18201e] leading-snug truncate">
+                        {productName}
+                      </h3>
+
+                      {/* Barcode Badge */}
+                      {barcode && (
+                        <div className="mt-1 inline-flex items-center gap-1 rounded bg-[#f0f4f2] px-1.5 py-0.5 text-[10px] font-mono text-[#54625e]">
+                          <BarcodeIcon size={12} className="text-[#7a8583]" />
+                          <span className="truncate max-w-[140px]">{barcode}</span>
+                        </div>
                       )}
-                    </button>
+
+                      {/* Weight Display */}
+                      {weightDisplay && (
+                        <div className="mt-1 flex items-center gap-1 text-[11px] text-[#7a8583]">
+                          <Scale size={12} className="text-[#8e9c97]" />
+                          <span>Weight: {weightDisplay}</span>
+                          {quantity > 1 && totalWeightDisplay && (
+                            <span className="text-[#6d7974]">
+                              (Total: {totalWeightDisplay})
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Quantity, Unit Price & Subtotal */}
+                      <div className="mt-2 flex items-baseline justify-between pt-1 border-t border-[#edf2ef]">
+                        <div className="text-[12px] text-[#7a8583]">
+                          <span>Qty: </span>
+                          <strong className="text-[#18201e] font-bold">{quantity}</strong>
+                          <span className="text-[11px] text-[#8e9c97] ml-1.5">
+                            (₹{unitPrice.toFixed(2)} each)
+                          </span>
+                        </div>
+
+                        {/* Subtotal */}
+                        <div className="text-right">
+                          <span className="text-[10px] uppercase font-bold text-[#8e9c97] block">
+                            Subtotal
+                          </span>
+                          <span className="text-[15px] font-extrabold text-[#159b7d]">
+                            ₹{subtotal.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Delete / Remove Button */}
+                    <div className="shrink-0 pl-1">
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveItem(barcode)}
+                        disabled={isDeletingThis}
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-red-50 hover:bg-red-100 transition-all duration-200 active:scale-95 disabled:opacity-40 cursor-pointer"
+                        aria-label={`Remove ${productName} from cart`}
+                        title="Remove one unit"
+                      >
+                        {isDeletingThis ? (
+                          <Loader2 size={13} className="text-red-500 animate-spin" />
+                        ) : (
+                          <Trash2 size={14} className="text-red-500" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -415,22 +448,25 @@ const ProductSummary = () => {
           </div>
         </div>
 
-        {/* Footer: Subtotal, Total, and Proceed To Pay */}
+        {/* Footer: Subtotal, Total, Expected Weight, and Proceed To Pay */}
         <footer className="shrink-0 bg-white border-t border-[#e2e7e5] px-5 sm:px-6 py-4 space-y-3 z-20">
-          <div className="flex items-center justify-between">
-            <span className="text-[14px] font-medium text-[#7a8583]">
-              Subtotal ({totalItemCount} {totalItemCount === 1 ? "item" : "items"})
+          <div className="flex items-center justify-between text-[13px] text-[#7a8583]">
+            <span>
+              Total Items ({totalItemCount} {totalItemCount === 1 ? "unit" : "units"})
             </span>
-            <span className="text-[15px] font-semibold text-[#111716]">
-              ₹{calculateTotal()}
-            </span>
+            {calculateExpectedWeight() && (
+              <span className="flex items-center gap-1 font-medium text-[#54625e]">
+                <Scale size={13} className="text-[#8e9c97]" />
+                <span>Est. Weight: {calculateExpectedWeight()}</span>
+              </span>
+            )}
           </div>
 
           <div className="flex items-center justify-between border-t border-[#f0f4f2] pt-2">
             <span className="text-[16px] font-bold text-[#111716]">
-              Total
+              Total Amount
             </span>
-            <span className="text-[20px] font-bold text-[#159b7d]">
+            <span className="text-[22px] font-extrabold text-[#159b7d]">
               ₹{calculateTotal()}
             </span>
           </div>

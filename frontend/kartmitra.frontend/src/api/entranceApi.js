@@ -1,5 +1,4 @@
-const API_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+import { getApiUrl } from "./client";
 
 /**
  * Generate the entrance QR.
@@ -7,8 +6,9 @@ const API_URL =
  * Used by the store/display screen.
  */
 export const generateEntranceQR = async () => {
+  const baseUrl = getApiUrl();
   const response = await fetch(
-    `${API_URL}/entrance/generate`,
+    `${baseUrl}/entrance/generate`,
     {
       method: "POST",
       headers: {
@@ -42,8 +42,9 @@ export const scanEntranceQR = async (qrToken) => {
     throw new Error("QR token is required");
   }
 
+  const baseUrl = getApiUrl();
   const response = await fetch(
-    `${API_URL}/entrance/scan`,
+    `${baseUrl}/entrance/scan`,
     {
       method: "POST",
       headers: {

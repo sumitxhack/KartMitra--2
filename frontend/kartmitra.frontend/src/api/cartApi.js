@@ -1,4 +1,6 @@
-const API_URL = "http://localhost:5000/api";
+import { getApiUrl } from "./client";
+
+const API_URL = getApiUrl();
 
 const getSessionId = () => {
   const sessionId = localStorage.getItem("sessionId");
@@ -28,8 +30,20 @@ export const getCart = async () => {
   return data.data;
 };
 
-export const addProductToCart = async (barcode) => {
+export const addProductToCart = async (barcodeOrProduct, quantity = 1) => {
   const sessionId = getSessionId();
+
+  const bodyPayload =
+    typeof barcodeOrProduct === "object" && barcodeOrProduct !== null
+      ? {
+          productId: barcodeOrProduct.productId || barcodeOrProduct.id || undefined,
+          barcode: barcodeOrProduct.barcode,
+          name: barcodeOrProduct.name,
+          price: barcodeOrProduct.price,
+          weight: barcodeOrProduct.weight,
+          quantity: barcodeOrProduct.quantity || quantity,
+        }
+      : { barcode: barcodeOrProduct, quantity };
 
   const response = await fetch(
     `${API_URL}/carts/${sessionId}/items`,
@@ -38,7 +52,7 @@ export const addProductToCart = async (barcode) => {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ barcode }),
+      body: JSON.stringify(bodyPayload),
     }
   );
 

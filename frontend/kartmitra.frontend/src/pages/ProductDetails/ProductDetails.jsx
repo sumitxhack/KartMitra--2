@@ -6,19 +6,17 @@ import {
   Package,
   ArrowRight,
   Sparkles,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 
-import {
-  useEffect,
-  useState,
-} from "react";
-
-import { useNavigate } from "react-router-dom";
-
+import { useEffect, useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import apiClient from "../../api/client";
 
 const ProductDetails = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [product, setProduct] = useState(null);
   const [quantity, setQuantity] = useState(1);
@@ -37,24 +35,34 @@ const ProductDetails = () => {
    */
   useEffect(() => {
     try {
-      const storedProduct =
-        sessionStorage.getItem("scannedProduct");
+      const stateProduct = location.state?.product;
+      const storedProductStr = sessionStorage.getItem("scannedProduct");
+      const storedProduct = storedProductStr ? JSON.parse(storedProductStr) : null;
 
-      if (!storedProduct) {
-        setError("No scanned product was found.");
+      const resolvedProduct = stateProduct || storedProduct;
+
+      if (!resolvedProduct) {
+        setError("No scanned product was found. Please scan a product first.");
         setLoading(false);
         return;
       }
 
-      const parsedProduct = JSON.parse(storedProduct);
-      setProduct(parsedProduct);
+      // Preserve AI verification flags from route navigation state if available
+      if (location.state?.aiVerified !== undefined) {
+        resolvedProduct.aiVerified = location.state.aiVerified;
+      }
+      if (location.state?.confidence !== undefined) {
+        resolvedProduct.aiConfidence = location.state.confidence;
+      }
+
+      setProduct(resolvedProduct);
     } catch (err) {
       console.error("Failed to load scanned product:", err);
       setError("Unable to load product details.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [location.state]);
 
   /*
    * ==========================================================
@@ -62,9 +70,7 @@ const ProductDetails = () => {
    * ==========================================================
    */
   const handleQuantityChange = (change) => {
-    setQuantity((previousQuantity) =>
-      Math.max(1, previousQuantity + change)
-    );
+    setQuantity((previousQuantity) => Math.max(1, previousQuantity + change));
   };
 
   /*
@@ -101,6 +107,20 @@ const ProductDetails = () => {
       return;
     }
 
+    // Do not automatically or manually add unverified products
+    const isVerified = Boolean(
+      product.aiVerified === true ||
+      product.aiStatus === "MATCH" ||
+      location.state?.aiVerified === true
+    );
+
+    if (!isVerified) {
+      setError(
+        "Cannot add unverified product to cart. Please verify the product with AI camera."
+      );
+      return;
+    }
+
     const sessionId = getSessionId();
 
     if (!sessionId) {
@@ -110,51 +130,65 @@ const ProductDetails = () => {
       return;
     }
 
-    const barcode = product.barcode;
+    const barcode = product.barcode?.trim();
 
     if (!barcode) {
       setError("Product barcode is missing.");
       return;
     }
 
+    // Convert weight to grams for authoritative cart storage
+    let resolvedWeight = Number(product.weight) || 0;
+    if (
+      product.weightUnit === "kg" ||
+      (resolvedWeight > 0 && resolvedWeight <= 20)
+    ) {
+      resolvedWeight = resolvedWeight * 1000;
+    }
+
+    const payload = {
+      productId: product.id
+        ? String(product.id)
+        : product._id
+        ? String(product._id)
+        : product.productId
+        ? String(product.productId)
+        : undefined,
+      barcode,
+      name: product.name,
+      price: Number(product.price) || 0,
+      weight: resolvedWeight,
+      quantity,
+    };
+
     try {
       setAddingToCart(true);
       setError("");
 
-      /*
-       * Requirement 6 & 7: Connect Add To Cart to EXISTING endpoint:
-       * POST /api/carts/:sessionId/items
-       * Body: { barcode, quantity }
-       */
       const response = await apiClient(
         `/carts/${encodeURIComponent(sessionId)}/items`,
         {
           method: "POST",
-          body: JSON.stringify({
-            barcode: barcode.trim(),
-            quantity,
-          }),
+          body: JSON.stringify(payload),
         }
       );
 
       console.log("Product added to cart response:", response);
 
-      const updatedCart = response?.data;
+      const updatedCart = response?.data || response?.cart || response;
 
       if (updatedCart) {
         sessionStorage.setItem("cart", JSON.stringify(updatedCart));
         localStorage.setItem("cart", JSON.stringify(updatedCart));
       }
 
-      // Record added quantity and display success view
       setAddedQuantity(quantity);
       setAddedSuccess(true);
     } catch (err) {
       console.error("Add to cart failed:", err);
-
       setError(
         err?.message ||
-          "Unable to add product to cart. Please check your session and try again."
+          "Unable to add product to cart. Please check your connection and try again."
       );
     } finally {
       setAddingToCart(false);
@@ -168,8 +202,9 @@ const ProductDetails = () => {
    */
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f4f8f6]">
-        <p className="text-[#7a8583]">Loading product...</p>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#f4f8f6] gap-3">
+        <Loader2 size={32} className="text-[#159b7d] animate-spin" />
+        <p className="text-sm font-medium text-[#7a8583]">Loading product details...</p>
       </div>
     );
   }
@@ -182,13 +217,16 @@ const ProductDetails = () => {
   if (error && !product) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f4f8f6] p-6">
-        <div className="text-center max-w-sm">
-          <p className="mb-5 text-sm text-red-500">{error}</p>
+        <div className="text-center max-w-sm rounded-3xl bg-white p-6 shadow-xl border border-[#e2e8e5]">
+          <AlertCircle size={40} className="text-red-500 mx-auto mb-3" />
+          <h3 className="text-base font-bold text-[#111716] mb-1">Notice</h3>
+          <p className="mb-5 text-xs text-red-600 leading-relaxed">{error}</p>
           <button
-            onClick={() => navigate(-1)}
-            className="rounded-xl bg-[#159b7d] px-6 py-3 text-sm font-semibold text-white shadow hover:bg-[#128a6f] transition"
+            type="button"
+            onClick={() => navigate("/scan-product")}
+            className="w-full rounded-xl bg-[#159b7d] px-6 py-3 text-xs font-bold text-white shadow hover:bg-[#128a6f] transition cursor-pointer"
           >
-            Go Back
+            Scan Product Again
           </button>
         </div>
       </div>
@@ -209,31 +247,45 @@ const ProductDetails = () => {
     product.imageUrl ||
     product.imageURL ||
     product.thumbnail ||
+    product.images?.[0]?.image_path ||
     "";
 
   const unitPrice = Number(product.price) || 0;
   const selectedTotal = unitPrice * quantity;
 
-  // Weight display string if available
-  const weightDisplay =
-    product.weight && product.weightUnit
-      ? `${product.weight} ${product.weightUnit}`
-      : product.weight
-      ? `${product.weight} g`
-      : product.size || "";
+  // Weight display calculation
+  const weightDisplay = (() => {
+    if (product.weight && product.weightUnit) {
+      return `${product.weight} ${product.weightUnit}`;
+    }
+    if (product.weight !== undefined && product.weight !== null) {
+      const w = Number(product.weight);
+      if (w > 0 && w <= 20) {
+        return `${w * 1000} g (${w} kg)`;
+      }
+      return `${w} g`;
+    }
+    return product.size || "Standard Packaging";
+  })();
 
-  // Check if verified by AI
+  // Verification status and confidence
   const isAiVerified = Boolean(
-    product.aiVerified || product.aiStatus === "MATCH"
+    product.aiVerified === true ||
+    product.aiStatus === "MATCH" ||
+    location.state?.aiVerified === true
   );
-  const aiConfidenceText =
-    typeof product.aiConfidence === "number"
-      ? `${Math.round(
-          product.aiConfidence > 1
-            ? product.aiConfidence
-            : product.aiConfidence * 100
-        )}%`
-      : null;
+
+  const aiConfidenceText = (() => {
+    const conf = product.aiConfidence ?? location.state?.confidence;
+    if (typeof conf === "number") {
+      const val = conf > 1 ? conf : conf * 100;
+      return `${Math.round(val)}%`;
+    }
+    if (typeof conf === "string" && conf.trim()) {
+      return conf.includes("%") ? conf : `${conf}%`;
+    }
+    return isAiVerified ? "High (Verified)" : null;
+  })();
 
   return (
     <div className="min-h-screen bg-[#f4f8f6] flex items-center justify-center p-0 sm:p-6">
@@ -321,7 +373,7 @@ const ProductDetails = () => {
                 </div>
 
                 <h2 className="text-xl font-extrabold text-[#111716] mb-1">
-                  ✓ Added to cart
+                  ✓ Added to Cart
                 </h2>
                 <p className="text-xs text-[#7a8583] mb-6">
                   Item successfully added to your shopping session
@@ -362,11 +414,11 @@ const ProductDetails = () => {
                 </div>
               </div>
 
-              {/* Action Buttons as requested in Requirement 8 */}
+              {/* Action Buttons as requested: [ Continue Shopping ] [ View Cart ] */}
               <div className="flex flex-col gap-3 mt-auto">
                 <button
                   type="button"
-                  onClick={() => navigate("/product-summary")}
+                  onClick={() => navigate("/shopping")}
                   className="
                     w-full
                     py-4
@@ -388,13 +440,13 @@ const ProductDetails = () => {
                     active:scale-98
                   "
                 >
-                  <ShoppingCart size={18} />
-                  <span>View Cart</span>
+                  <span>Continue Shopping</span>
+                  <ArrowRight size={16} />
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => navigate("/shopping")}
+                  onClick={() => navigate("/product-summary")}
                   className="
                     w-full
                     py-3.5
@@ -414,8 +466,8 @@ const ProductDetails = () => {
                     gap-2
                   "
                 >
-                  <span>Continue Shopping</span>
-                  <ArrowRight size={16} />
+                  <ShoppingCart size={18} />
+                  <span>View Cart</span>
                 </button>
               </div>
             </div>
@@ -425,19 +477,24 @@ const ProductDetails = () => {
             ================================================== */
             <div className="flex-1 flex flex-col justify-between overflow-y-auto">
               <div className="flex-1">
-                {/* AI VERIFICATION STATUS & CONFIDENCE BADGE (Requirement 5) */}
-                {isAiVerified && (
-                  <div className="mb-4 flex items-center justify-between rounded-xl bg-[#e8f5ef] border border-[#159b7d]/30 px-3.5 py-2.5">
+                {/* AI VERIFICATION STATUS & CONFIDENCE BADGE (Requirement 1 & 2) */}
+                {isAiVerified ? (
+                  <div className="mb-4 flex items-center justify-between rounded-xl bg-[#e8f5ef] border border-[#159b7d]/30 px-3.5 py-2.5 shadow-xs">
                     <div className="flex items-center gap-2 text-[#159b7d] font-bold text-xs">
                       <CheckCircle2 size={16} className="text-[#159b7d] shrink-0" />
-                      <span>✓ AI Verified</span>
+                      <span className="tracking-wide">✓ AI VERIFIED</span>
                     </div>
 
                     {aiConfidenceText && (
                       <span className="text-[11px] font-semibold text-[#159b7d] bg-white px-2.5 py-0.5 rounded-full border border-[#159b7d]/20 shadow-xs">
-                        AI Confidence: {aiConfidenceText}
+                        Confidence: {aiConfidenceText}
                       </span>
                     )}
+                  </div>
+                ) : (
+                  <div className="mb-4 flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-300 px-3.5 py-2.5 text-amber-800 text-xs">
+                    <Sparkles size={16} className="text-amber-600 shrink-0" />
+                    <span>AI verification required before adding to cart.</span>
                   </div>
                 )}
 
@@ -477,14 +534,14 @@ const ProductDetails = () => {
 
                 {/* DETAILS */}
                 <div className="space-y-3 mb-4">
-                  {/* Name & Weight */}
+                  {/* Name & Category */}
                   <div>
                     <h2 className="text-[18px] font-bold text-[#111716] leading-tight">
                       {product.name}
                     </h2>
-                    {weightDisplay && (
-                      <p className="mt-0.5 text-[13px] font-medium text-[#7a8583]">
-                        {weightDisplay}
+                    {product.category && (
+                      <p className="mt-0.5 text-xs font-medium text-[#159b7d]">
+                        Category: {product.category}
                       </p>
                     )}
                   </div>
@@ -496,25 +553,33 @@ const ProductDetails = () => {
                     </p>
                   </div>
 
-                  {/* Barcode Tag */}
-                  {product.barcode && (
-                    <div className="inline-flex items-center gap-1.5 rounded-lg bg-[#f0f4f2] px-2.5 py-1 text-[11px] font-mono text-[#54625e]">
-                      <BarcodeIcon size={14} className="text-[#7a8583]" />
-                      <span>{product.barcode}</span>
-                    </div>
-                  )}
+                  {/* Barcode Tag & Weight */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {product.barcode && (
+                      <div className="inline-flex items-center gap-1.5 rounded-lg bg-[#f0f4f2] px-2.5 py-1 text-[11px] font-mono text-[#54625e]">
+                        <BarcodeIcon size={14} className="text-[#7a8583]" />
+                        <span>{product.barcode}</span>
+                      </div>
+                    )}
 
-                  {/* Description if available */}
-                  {product.description && (
-                    <div className="pt-2">
-                      <h4 className="text-[11px] font-bold uppercase tracking-wide text-[#7a8583] mb-1">
-                        Description
-                      </h4>
-                      <p className="text-xs text-[#54625e] leading-relaxed">
-                        {product.description}
-                      </p>
-                    </div>
-                  )}
+                    {weightDisplay && (
+                      <div className="inline-flex items-center gap-1.5 rounded-lg bg-[#f0f4f2] px-2.5 py-1 text-[11px] font-medium text-[#54625e]">
+                        <span className="text-[#7a8583]">Weight:</span>
+                        <span className="font-semibold">{weightDisplay}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Description */}
+                  <div className="pt-2 border-t border-[#f0f4f2]">
+                    <h4 className="text-[11px] font-bold uppercase tracking-wide text-[#7a8583] mb-1">
+                      Description
+                    </h4>
+                    <p className="text-xs text-[#54625e] leading-relaxed">
+                      {product.description ||
+                        "Packaged retail item verified through AI Verification Lab authoritative catalogue."}
+                    </p>
+                  </div>
 
                   {/* Quantity Selector */}
                   <div className="pt-2 flex items-center justify-between border-t border-[#f0f4f2]">
@@ -592,12 +657,12 @@ const ProductDetails = () => {
                 )}
               </div>
 
-              {/* ADD TO CART BUTTON (Requirement 5, 6, 7) */}
+              {/* ADD TO CART BUTTON (Requirement 3, 4, 5, 6) */}
               <div className="pt-2 mt-auto">
                 <button
                   type="button"
                   onClick={handleAddToCart}
-                  disabled={addingToCart}
+                  disabled={addingToCart || !isAiVerified}
                   className="
                     flex
                     h-14
@@ -621,10 +686,17 @@ const ProductDetails = () => {
                     cursor-pointer
                   "
                 >
-                  <ShoppingCart size={18} />
-                  {addingToCart
-                    ? "Adding to Cart..."
-                    : `Add ${quantity} to Cart • ₹${selectedTotal.toFixed(2)}`}
+                  {addingToCart ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      <span>Adding to Cart...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShoppingCart size={18} />
+                      <span>ADD TO CART</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>

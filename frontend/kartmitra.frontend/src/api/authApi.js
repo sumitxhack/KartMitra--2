@@ -1,4 +1,6 @@
-const API_URL = "http://localhost:5000/api";
+import { getApiUrl } from "./client";
+
+const API_URL = getApiUrl();
 
 export const googleLogin = async (credential) => {
   const response = await fetch(`${API_URL}/auth/google`, {

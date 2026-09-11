@@ -1,17 +1,31 @@
-const API_URL = import.meta.env.VITE_API_URL;
+export const getApiUrl = () => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (typeof window !== "undefined") {
+    const currentHost = window.location.hostname;
+    if (currentHost === "localhost" || currentHost === "127.0.0.1") {
+      if (!envUrl || (!envUrl.includes("localhost") && !envUrl.includes("127.0.0.1"))) {
+        return "http://localhost:5000/api";
+      }
+    } else if (currentHost) {
+      if (!envUrl || envUrl.includes("localhost") || envUrl.includes("127.0.0.1") || envUrl.includes("10.240.19.48")) {
+        return `http://${currentHost}:5000/api`;
+      }
+    }
+  }
+  return envUrl || "http://localhost:5000/api";
+};
 
-if (!API_URL) {
-  throw new Error("VITE_API_URL is not configured");
-}
+export const API_URL = getApiUrl();
 
 const apiClient = async (endpoint, options = {}) => {
+  const baseUrl = getApiUrl();
   const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
   const headers = {
     ...(!isFormData ? { "Content-Type": "application/json" } : {}),
     ...(options.headers || {}),
   };
 
-  const response = await fetch(`${API_URL}${endpoint}`, {
+  const response = await fetch(`${baseUrl}${endpoint}`, {
     ...options,
     headers,
   });
