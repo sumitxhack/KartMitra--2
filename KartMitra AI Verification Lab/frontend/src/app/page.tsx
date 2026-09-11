@@ -1,7 +1,7 @@
 "use client";
 
-import VerificationDashboardPage from "./dashboard/page";
+import AdminDashboardPage from "./dashboard/page";
 
 export default function Home() {
-  return <VerificationDashboardPage />;
+  return <AdminDashboardPage />;
 }

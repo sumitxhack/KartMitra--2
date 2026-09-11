@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { QRCodeCanvas } from "qrcode.react";
 import { generateEntranceQR } from "../../api/entranceApi";
 
@@ -171,8 +172,15 @@ const EntranceQR = () => {
       </main>
 
       {/* Footer */}
-      <footer className="py-5 text-center text-xs text-slate-500">
-        Secure self-checkout powered by KartMitra
+      <footer className="py-5 text-center text-xs text-slate-500 flex items-center justify-center gap-3">
+        <span>Secure self-checkout powered by KartMitra</span>
+        <span className="text-slate-300">•</span>
+        <Link
+          to="/admin"
+          className="text-slate-400 hover:text-slate-600 transition"
+        >
+          Admin Portal
+        </Link>
       </footer>
 
     </div>

@@ -9,15 +9,15 @@ import { ArrowLeft, Save, AlertCircle, RefreshCw, Box } from "lucide-react";
 const API_BASE = "http://127.0.0.1:8000";
 
 interface ProductImage {
-  id: number;
-  product_id: number;
+  id: string | number;
+  product_id: string | number;
   image_path: string;
   image_type: string;
   created_at: string;
 }
 
 interface Product {
-  id: number;
+  id: string | number;
   barcode: string;
   name: string;
   price: number;

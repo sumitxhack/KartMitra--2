@@ -9,3 +9,14 @@ export const getProductByBarcode = async (barcode) => {
     `/products/barcode/${encodeURIComponent(barcode)}`
   );
 };
+
+export const getProducts = async () => {
+  return apiClient("/products");
+};
+
+export const createProduct = async (productData) => {
+  return apiClient("/products", {
+    method: "POST",
+    body: JSON.stringify(productData),
+  });
+};

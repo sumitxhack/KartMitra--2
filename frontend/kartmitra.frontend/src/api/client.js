@@ -5,12 +5,15 @@ if (!API_URL) {
 }
 
 const apiClient = async (endpoint, options = {}) => {
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
+  const headers = {
+    ...(!isFormData ? { "Content-Type": "application/json" } : {}),
+    ...(options.headers || {}),
+  };
+
   const response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
+    headers,
   });
 
   let data;

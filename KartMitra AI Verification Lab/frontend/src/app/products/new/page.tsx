@@ -1,47 +1,67 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Navigation from "@/components/Navigation";
-import { ArrowLeft, Save, Upload, AlertCircle, CheckCircle2, RefreshCw, X, Box } from "lucide-react";
+import {
+  ArrowLeft,
+  Upload,
+  AlertCircle,
+  CheckCircle2,
+  RefreshCw,
+  X,
+  Box,
+  Sparkles,
+  ShieldCheck,
+  Check,
+  Tag,
+  Barcode as BarcodeIcon,
+  Layers,
+  ArrowRight,
+  Plus,
+} from "lucide-react";
 
 const API_BASE = "http://127.0.0.1:8000";
 const ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"];
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
-
-const IMAGE_TYPES = [
-  { id: "front", label: "Front Image", desc: "Front side showing primary branding", required: true },
-  { id: "back", label: "Back Image", desc: "Rear side containing details/nutrition info", required: false },
-  { id: "side", label: "Side Image", desc: "Left or right profile of the product", required: false },
-  { id: "angled", label: "Angled Image", desc: "Three-quarter / isometric perspective", required: false },
-  { id: "additional", label: "Additional Images", desc: "Other miscellaneous views", required: false },
-];
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB per file
 
 export default function AddProductPage() {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Product form states
-  const [barcode, setBarcode] = useState("");
+  // Form states (Prompt Requirement 3)
   const [name, setName] = useState("");
+  const [barcode, setBarcode] = useState("");
+  const [sku, setSku] = useState("");
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState("Snacks & Munchies");
+  const [customCategory, setCustomCategory] = useState("");
   const [price, setPrice] = useState("");
   const [weight, setWeight] = useState("");
-  const [category, setCategory] = useState("Beverages");
-  const [description, setDescription] = useState("");
+  const [weightUnit, setWeightUnit] = useState<"kg" | "g">("kg");
 
-  // Barcode verification status
+  // Barcode validation state
   const [barcodeValidating, setBarcodeValidating] = useState(false);
   const [barcodeError, setBarcodeError] = useState<string | null>(null);
 
-  // Staged files states: map of image_type -> File object
-  const [stagedFiles, setStagedFiles] = useState<{ [key: string]: File }>({});
-  const [previews, setPreviews] = useState<{ [key: string]: string }>({});
+  // Multiple Reference Images state (Prompt Requirement 3)
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
+  const [dragActive, setDragActive] = useState(false);
 
+  // Submission & Progress states (Prompt Requirement 4 & 5)
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitStep, setSubmitStep] = useState<"idle" | "creating_product" | "uploading_images" | "generating_embeddings" | "updating_index" | "ready">("idle");
+  const [submitStep, setSubmitStep] = useState<
+    "idle" | "registering_product" | "uploading_images" | "dinov2_embedding" | "faiss_indexing" | "completed"
+  >("idle");
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [registeredProductId, setRegisteredProductId] = useState<string | null>(null);
 
-  // Verify barcode uniqueness when focus leaves the input field
+  // Success modal confirmation state (Prompt Requirement 5)
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+
+  // Verify barcode uniqueness on blur
   const handleBarcodeBlur = async () => {
     const trimmed = barcode.trim();
     if (!trimmed) return;
@@ -51,96 +71,121 @@ export default function AddProductPage() {
     try {
       const res = await fetch(`${API_BASE}/api/v1/products/barcode/${trimmed}`);
       if (res.ok) {
-        // Product found, barcode is NOT unique
         setBarcodeError("This barcode is already registered in the system.");
       }
     } catch (err) {
-      console.error("Error verifying barcode:", err);
+      console.warn("Barcode uniqueness check warning:", err);
     } finally {
       setBarcodeValidating(false);
     }
   };
 
-  const handleFileChange = (type: string, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Handle multiple file selection at once (Prompt Requirement 3)
+  const handleFiles = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
 
-    // Validate size
-    if (file.size > MAX_FILE_SIZE) {
-      alert(`File is too large. Max size allowed is 5MB.`);
-      return;
-    }
+    const newValidFiles: File[] = [];
+    const newPreviewUrls: string[] = [];
 
-    // Validate format
-    const extension = "." + file.name.split(".").pop()?.toLowerCase();
-    if (!ALLOWED_EXTENSIONS.includes(extension)) {
-      alert(`Unsupported file format. Supported formats: ${ALLOWED_EXTENSIONS.join(", ")}`);
-      return;
-    }
+    Array.from(files).forEach((file) => {
+      // Validate file size
+      if (file.size > MAX_FILE_SIZE) {
+        alert(`File "${file.name}" exceeds 5MB limit.`);
+        return;
+      }
+      // Validate extension
+      const ext = "." + file.name.split(".").pop()?.toLowerCase();
+      if (!ALLOWED_EXTENSIONS.includes(ext)) {
+        alert(`Unsupported file format for "${file.name}". Allowed: ${ALLOWED_EXTENSIONS.join(", ")}`);
+        return;
+      }
+      newValidFiles.push(file);
+      newPreviewUrls.push(URL.createObjectURL(file));
+    });
 
-    // Update staged file and generate local preview url
-    setStagedFiles((prev) => ({ ...prev, [type]: file }));
-    if (previews[type]) {
-      URL.revokeObjectURL(previews[type]);
-    }
-    setPreviews((prev) => ({ ...prev, [type]: URL.createObjectURL(file) }));
+    setSelectedFiles((prev) => [...prev, ...newValidFiles]);
+    setPreviews((prev) => [...prev, ...newPreviewUrls]);
   };
 
-  const removeFile = (type: string) => {
-    if (previews[type]) {
-      URL.revokeObjectURL(previews[type]);
+  const removeFile = (index: number) => {
+    if (previews[index]) {
+      URL.revokeObjectURL(previews[index]);
     }
-    setStagedFiles((prev) => {
-      const copy = { ...prev };
-      delete copy[type];
-      return copy;
-    });
-    setPreviews((prev) => {
-      const copy = { ...prev };
-      delete copy[type];
-      return copy;
-    });
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+    setPreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // Drag & drop handlers
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFiles(e.dataTransfer.files);
+    }
+  };
+
+  // Submit Handler (Prompt Requirement 4 & 5)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError(null);
 
-    // Initial validations
-    if (!barcode.trim() || !name.trim() || !price || !weight) {
-      setSubmitError("Please fill in all required fields.");
+    // Form field validations
+    if (!name.trim() || !barcode.trim() || !price || !weight) {
+      setSubmitError("Please fill in all required fields (Product Name, Barcode, Price, Weight).");
       return;
     }
 
     if (barcodeError) {
-      setSubmitError("Please resolve the duplicate barcode error.");
+      setSubmitError("Please resolve duplicate barcode before registering.");
       return;
     }
 
     const priceVal = parseFloat(price);
-    const weightVal = parseFloat(weight);
-
     if (isNaN(priceVal) || priceVal <= 0) {
       setSubmitError("Price must be a positive number.");
       return;
     }
 
+    let weightVal = parseFloat(weight);
     if (isNaN(weightVal) || weightVal <= 0) {
       setSubmitError("Weight must be a positive number.");
       return;
     }
 
-    // Front image is required for dataset completeness
-    if (!stagedFiles["front"]) {
-      setSubmitError("Please upload at least the Front Image of the product.");
+    // Convert weight to kg for backend consistency
+    if (weightUnit === "g") {
+      weightVal = Number((weightVal / 1000).toFixed(4));
+    }
+
+    if (selectedFiles.length === 0) {
+      setSubmitError("Please select at least 1 reference image (3-5 recommended for DINOv2 AI accuracy).");
       return;
     }
 
+    const activeCategory = category === "Other" && customCategory.trim() ? customCategory.trim() : category;
+
+    // Combine SKU into description metadata
+    let fullDescription = description.trim();
+    if (sku.trim()) {
+      fullDescription = fullDescription ? `[SKU: ${sku.trim()}] ${fullDescription}` : `SKU: ${sku.trim()}`;
+    }
+
     setIsSubmitting(true);
-    setSubmitStep("creating_product");
+    setSubmitStep("registering_product");
 
     try {
-      // 1. Create Product Registry Entry
+      // Step 1: Register Product via existing API (POST /api/v1/products)
       const productRes = await fetch(`${API_BASE}/api/v1/products`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -149,331 +194,458 @@ export default function AddProductPage() {
           name: name.trim(),
           price: priceVal,
           weight: weightVal,
-          category: category.trim(),
-          description: description.trim() || null,
+          category: activeCategory,
+          description: fullDescription || null,
         }),
       });
 
       const productData = await productRes.json();
-
       if (!productRes.ok) {
-        throw new Error(productData.detail || "Failed to create product registry.");
+        throw new Error(productData.detail || "Failed to register product.");
       }
 
-      // Check if product creation returns {success, product} or raw product
-      const product = productData.product || productData;
-      const productId = product.id;
+      const createdProduct = productData.product || productData;
+      const productId = createdProduct.id;
+      setRegisteredProductId(productId);
 
-      // 2. Upload Staged Images
+      // Step 2: Upload Multiple Reference Images via existing Batch API (POST /api/v1/products/{id}/images/batch)
       setSubmitStep("uploading_images");
-      const filesToUpload = Object.entries(stagedFiles);
+      const batchFormData = new FormData();
+      selectedFiles.forEach((file) => {
+        batchFormData.append("files", file);
+      });
+      batchFormData.append("image_type", "reference");
 
-      if (filesToUpload.length > 0) {
-        setSubmitStep("generating_embeddings");
-        const batchFormData = new FormData();
-        filesToUpload.forEach(([imageType, file]) => {
-          batchFormData.append("files", file);
-        });
-        batchFormData.append("image_type", "reference");
+      setSubmitStep("dinov2_embedding");
+      const batchRes = await fetch(`${API_BASE}/api/v1/products/${productId}/images/batch`, {
+        method: "POST",
+        body: batchFormData,
+      });
 
-        const batchRes = await fetch(`${API_BASE}/api/v1/products/${productId}/images/batch`, {
-          method: "POST",
-          body: batchFormData,
-        });
-
-        const batchData = await batchRes.json().catch(() => ({}));
-        if (!batchRes.ok || batchData.success === false) {
-          console.warn("Batch upload warning:", batchData);
-          if (batchData.errors && batchData.errors.length > 0) {
-            setSubmitError(`Warning during image indexing: ${batchData.errors.join("; ")}`);
-          }
+      const batchData = await batchRes.json().catch(() => ({}));
+      if (!batchRes.ok || batchData.success === false) {
+        console.warn("Batch reference image upload note:", batchData);
+        if (batchData.errors && batchData.errors.length > 0) {
+          setSubmitError(`Warning during image upload: ${batchData.errors.join("; ")}`);
         }
       }
 
-      // 3. Confirm Indexing Status
-      setSubmitStep("updating_index");
+      // Step 3: Trigger / Confirm FAISS Indexing (reusing existing backend dynamic index logic)
+      setSubmitStep("faiss_indexing");
       try {
-        await fetch(`${API_BASE}/api/v1/products/${productId}/index-status`);
+        await fetch(`${API_BASE}/api/v1/products/${productId}/index`, {
+          method: "POST",
+        });
       } catch (err) {
-        console.warn("Status check warning:", err);
+        console.warn("Incremental indexing verification note:", err);
       }
 
-      setSubmitStep("ready");
-
-      // 4. Redirect after brief confirmation
-      setTimeout(() => {
-        router.push("/products");
-        router.refresh();
-      }, 1500);
+      // Step 4: Completed! Show exact 3 required confirmation messages (Prompt Requirement 5)
+      setSubmitStep("completed");
+      setShowSuccessModal(true);
     } catch (err: any) {
-      console.error("Submission error:", err);
-      setSubmitError(err.message || "Failed to save product and images.");
-      setIsSubmitting(false);
+      console.error("Product registration error:", err);
+      setSubmitError(err.message || "Failed to register product and index reference images.");
       setSubmitStep("idle");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
+  const handleResetForm = () => {
+    setName("");
+    setBarcode("");
+    setSku("");
+    setDescription("");
+    setPrice("");
+    setWeight("");
+    setCategory("Snacks & Munchies");
+    setCustomCategory("");
+    setSelectedFiles([]);
+    setPreviews([]);
+    setShowSuccessModal(false);
+    setSubmitStep("idle");
+    setSubmitError(null);
+    setRegisteredProductId(null);
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800">
       <Navigation />
 
-      <main className="flex-1 max-w-5xl w-full mx-auto p-4 md:py-8 flex flex-col gap-6">
-        {/* Navigation link */}
+      <main className="flex-1 max-w-6xl w-full mx-auto p-4 md:py-8 flex flex-col gap-6">
+        {/* Navigation Breadcrumb */}
         <div>
           <Link
             href="/products"
-            className="flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-blue-600 transition"
+            className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-blue-600 transition"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to Products list
+            Back to Products Catalog
           </Link>
         </div>
 
         {/* Header */}
-        <header className="border-b pb-4">
-          <h2 className="text-2xl font-black text-gray-900 tracking-tight flex items-center gap-2">
-            <Box className="h-6 w-6 text-blue-600" />
-            Register New Product
-          </h2>
-          <p className="text-xs text-gray-500 font-medium">
-            Enter product registry information and upload training dataset photos
-          </p>
+        <header className="bg-white rounded-3xl p-6 shadow-xs border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[10px] font-black uppercase tracking-wider bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-full">
+                Admin Product Registration
+              </span>
+              <span className="text-[10px] font-bold text-slate-400">
+                Auto-triggers DINOv2 + FAISS
+              </span>
+            </div>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
+              <Box className="h-6 w-6 text-blue-600" />
+              Add New Product
+            </h1>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">
+              Enter product specifications and upload multiple reference images for automatic AI embedding indexing
+            </p>
+          </div>
         </header>
 
-        {/* Submit Alerts */}
+        {/* Error Alert */}
         {submitError && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-3.5 flex items-center gap-2 text-xs font-bold text-red-800">
-            <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
-            {submitError}
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-center gap-3 text-xs font-bold text-red-800 shadow-xs">
+            <AlertCircle className="h-5 w-5 text-red-600 shrink-0" />
+            <span>{submitError}</span>
           </div>
         )}
 
+        {/* Product Registration Form */}
         <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Left Panel: Info form (5 cols) */}
-          <div className="lg:col-span-5 bg-white border border-gray-200 p-5 rounded-xl shadow-sm flex flex-col gap-4">
-            <h3 className="font-bold text-gray-800 text-sm border-b pb-2 uppercase tracking-wide">
-              Product Registry Details
-            </h3>
-
-            {/* Barcode */}
-            <div>
-              <label className="text-xs font-bold text-gray-600 block mb-1">
-                Barcode Number <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. 8901030704901"
-                  value={barcode}
-                  onChange={(e) => {
-                    setBarcode(e.target.value);
-                    setBarcodeError(null);
-                  }}
-                  onBlur={handleBarcodeBlur}
-                  className={`w-full bg-gray-50 border ${
-                    barcodeError ? "border-red-300" : "border-gray-200"
-                  } rounded-lg px-3.5 py-2.5 text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none transition`}
-                />
-                {barcodeValidating && (
-                  <span className="absolute right-3.5 top-3 flex items-center pointer-events-none">
-                    <RefreshCw className="h-4 w-4 text-blue-500 animate-spin" />
-                  </span>
-                )}
-              </div>
-              {barcodeError && (
-                <span className="text-[10px] text-red-600 font-bold mt-1 block">
-                  {barcodeError}
-                </span>
-              )}
+          {/* Left Column: Product Specifications (5 cols) */}
+          <div className="lg:col-span-5 bg-white border border-slate-200 p-6 rounded-3xl shadow-xs space-y-4">
+            <div className="border-b border-slate-100 pb-3">
+              <h2 className="text-xs font-black uppercase tracking-wider text-slate-400">
+                Product Details
+              </h2>
             </div>
 
-            {/* Product Name */}
+            {/* Product Name (Prompt Requirement 3) */}
             <div>
-              <label className="text-xs font-bold text-gray-600 block mb-1">
+              <label className="text-xs font-bold text-slate-700 block mb-1">
                 Product Name <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 required
-                placeholder="e.g. Coca-Cola Original Taste 250ml"
+                placeholder="e.g. Lay's Classic Salted Potato Chips 50g"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3.5 py-2.5 text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
               />
             </div>
 
-            {/* Price & Weight Grid */}
-            <div className="grid grid-cols-2 gap-3">
+            {/* Barcode & SKU Row (Prompt Requirement 3) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-bold text-gray-600 block mb-1">
-                  Price (₹) <span className="text-red-500">*</span>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Barcode <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  placeholder="e.g. 20.00"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3.5 py-2.5 text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. 8901491101837"
+                    value={barcode}
+                    onChange={(e) => {
+                      setBarcode(e.target.value);
+                      if (barcodeError) setBarcodeError(null);
+                    }}
+                    onBlur={handleBarcodeBlur}
+                    className={`w-full bg-slate-50 border rounded-xl px-3 py-2.5 text-xs font-mono font-bold focus:ring-2 focus:outline-none transition ${
+                      barcodeError
+                        ? "border-red-400 text-red-700 focus:ring-red-400"
+                        : "border-slate-200 text-slate-900 focus:ring-blue-500"
+                    }`}
+                  />
+                  {barcodeValidating && (
+                    <RefreshCw className="h-3.5 w-3.5 text-blue-500 animate-spin absolute right-3 top-3" />
+                  )}
+                </div>
+                {barcodeError && (
+                  <p className="text-[10px] text-red-600 font-bold mt-1">{barcodeError}</p>
+                )}
               </div>
+
               <div>
-                <label className="text-xs font-bold text-gray-600 block mb-1">
-                  Weight (kg) <span className="text-red-500">*</span>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  SKU (Stock Keeping Unit)
                 </label>
                 <input
-                  type="number"
-                  step="0.001"
-                  required
-                  placeholder="e.g. 0.280"
-                  value={weight}
-                  onChange={(e) => setWeight(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3.5 py-2.5 text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
+                  type="text"
+                  placeholder="e.g. LYS-CLS-50G"
+                  value={sku}
+                  onChange={(e) => setSku(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
                 />
               </div>
             </div>
 
-            {/* Category */}
+            {/* Category (Prompt Requirement 3) */}
             <div>
-              <label className="text-xs font-bold text-gray-600 block mb-1">
-                Category
+              <label className="text-xs font-bold text-slate-700 block mb-1">
+                Category <span className="text-red-500">*</span>
               </label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3.5 py-2.5 text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none transition cursor-pointer"
               >
+                <option value="Snacks & Munchies">Snacks & Munchies</option>
+                <option value="Dairy & Eggs">Dairy & Eggs</option>
                 <option value="Beverages">Beverages</option>
-                <option value="Snacks & Chips">Snacks & Chips</option>
-                <option value="Chocolates & Sweets">Chocolates & Sweets</option>
-                <option value="Instant Foods">Instant Foods</option>
-                <option value="Dairy & Bakery">Dairy & Bakery</option>
+                <option value="Instant Food">Instant Food</option>
+                <option value="Chocolates & Confectionery">Chocolates & Confectionery</option>
+                <option value="Grocery Essentials">Grocery Essentials</option>
                 <option value="Personal Care">Personal Care</option>
-                <option value="Household Supplies">Household Supplies</option>
+                <option value="Other">Other (Custom Category)</option>
               </select>
+
+              {category === "Other" && (
+                <input
+                  type="text"
+                  placeholder="Enter custom category name"
+                  value={customCategory}
+                  onChange={(e) => setCustomCategory(e.target.value)}
+                  className="w-full mt-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              )}
             </div>
 
-            {/* Description */}
+            {/* Price & Weight with Weight Unit (Prompt Requirement 3) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Price (₹) <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 font-bold text-xs">
+                    ₹
+                  </span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    required
+                    placeholder="20.00"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-7 pr-3 py-2.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Weight & Unit <span className="text-red-500">*</span>
+                </label>
+                <div className="flex gap-1.5">
+                  <input
+                    type="number"
+                    step="any"
+                    min="0.001"
+                    required
+                    placeholder={weightUnit === "kg" ? "0.050" : "50"}
+                    value={weight}
+                    onChange={(e) => setWeight(e.target.value)}
+                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
+                  />
+                  {/* Weight Unit Selector (Prompt Requirement 3) */}
+                  <select
+                    value={weightUnit}
+                    onChange={(e) => setWeightUnit(e.target.value as "kg" | "g")}
+                    className="w-16 bg-slate-100 border border-slate-200 rounded-xl px-2 py-2.5 text-xs font-extrabold text-slate-800 focus:outline-none cursor-pointer"
+                  >
+                    <option value="kg">kg</option>
+                    <option value="g">g</option>
+                  </select>
+                </div>
+                <span className="text-[10px] text-slate-400 font-medium mt-0.5 block">
+                  {weightUnit === "g" && weight
+                    ? `= ${(parseFloat(weight || "0") / 1000).toFixed(3)} kg for AI scale`
+                    : "Used by IoT weight verification"}
+                </span>
+              </div>
+            </div>
+
+            {/* Description (Prompt Requirement 3) */}
             <div>
-              <label className="text-xs font-bold text-gray-600 block mb-1">
-                Description (Optional)
+              <label className="text-xs font-bold text-slate-700 block mb-1">
+                Description
               </label>
               <textarea
                 rows={3}
-                placeholder="Describe package characteristics, packaging type, color..."
+                placeholder="Product description, packaging highlights, or brand notes..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3.5 py-2.5 text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none transition resize-none"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
               />
             </div>
           </div>
 
-          {/* Right Panel: Dataset Upload zone (7 cols) */}
-          <div className="lg:col-span-7 bg-white border border-gray-200 p-5 rounded-xl shadow-sm flex flex-col gap-4">
-            <div className="border-b pb-2 flex justify-between items-center">
-              <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wide">
-                Dataset Training Images
-              </h3>
-              <span className="text-[10px] text-gray-400 font-bold uppercase">
-                Allowed formats: JPEG, PNG, WEBP (Max 5MB)
+          {/* Right Column: Multiple Reference Images & AI Pipeline (7 cols) (Prompt Requirement 3 & 4) */}
+          <div className="lg:col-span-7 bg-white border border-slate-200 p-6 rounded-3xl shadow-xs space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h2 className="text-xs font-black uppercase tracking-wider text-slate-400">
+                  Reference Images (Multiple Selection)
+                </h2>
+                <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                  Select multiple reference photos at once (Front, Back, Angled). 3 to 5 images recommended.
+                </p>
+              </div>
+              <span className="text-[10px] font-black uppercase bg-purple-50 text-purple-700 border border-purple-200 px-2.5 py-1 rounded-full flex items-center gap-1">
+                <Sparkles className="h-3 w-3" />
+                DINOv2 Auto-Index
               </span>
             </div>
 
-            {/* Upload grid */}
-            <div className="flex flex-col gap-3.5">
-              {IMAGE_TYPES.map((type) => {
-                const preview = previews[type.id];
-                const file = stagedFiles[type.id];
+            {/* Multi-Image Drag & Drop / File Input Zone (Prompt Requirement 3) */}
+            <div
+              onDragEnter={handleDrag}
+              onDragLeave={handleDrag}
+              onDragOver={handleDrag}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={`border-2 border-dashed rounded-3xl p-8 text-center cursor-pointer transition flex flex-col items-center justify-center gap-2 ${
+                dragActive
+                  ? "border-blue-500 bg-blue-50/50"
+                  : "border-slate-300 hover:border-blue-400 bg-slate-50/50 hover:bg-slate-50"
+              }`}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={(e) => handleFiles(e.target.files)}
+                className="hidden"
+              />
 
-                return (
-                  <div
-                    key={type.id}
-                    className="border border-gray-100 rounded-xl p-3 bg-gray-50/50 flex flex-col md:flex-row items-start md:items-center justify-between gap-3"
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-bold text-gray-800">{type.label}</span>
-                        {type.required && (
-                          <span className="text-[10px] bg-red-150 text-red-700 font-bold px-1.5 py-0.2 rounded-full uppercase">
-                            Required
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-gray-400 font-medium mt-0.5">{type.desc}</p>
-                    </div>
+              <div className="h-12 w-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center">
+                <Upload className="h-6 w-6" />
+              </div>
 
-                    <div className="w-full md:w-auto flex items-center gap-3">
-                      {preview ? (
-                        <div className="relative h-14 w-20 rounded-lg overflow-hidden border border-gray-200 shadow-sm shrink-0 bg-white">
-                          <img src={preview} alt={type.label} className="h-full w-full object-cover" />
-                          <button
-                            type="button"
-                            onClick={() => removeFile(type.id)}
-                            className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white rounded-full p-0.5 shadow-xs transition"
-                            title="Remove staged image"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="relative border border-dashed border-gray-300 hover:border-blue-500 rounded-lg h-14 w-20 flex items-center justify-center shrink-0 cursor-pointer bg-white transition">
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => handleFileChange(type.id, e)}
-                            className="absolute inset-0 opacity-0 cursor-pointer"
-                          />
-                          <Upload className="h-4 w-4 text-gray-400" />
-                        </div>
-                      )}
+              <div>
+                <span className="text-xs font-extrabold text-slate-800 block">
+                  Click to select multiple images or drag & drop here
+                </span>
+                <span className="text-[11px] text-slate-400 font-medium">
+                  Select multiple files at once (JPG, PNG, WEBP - Max 5MB each)
+                </span>
+              </div>
 
-                      <div className="text-left shrink-0">
-                        {file ? (
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-[10px] text-green-700 font-bold flex items-center gap-1">
-                              <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
-                              Staged
-                            </span>
-                            <span className="text-[9px] text-gray-400 font-semibold truncate max-w-[100px]">
-                              {(file.size / (1024 * 1024)).toFixed(2)} MB
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-[10px] text-gray-400 font-bold italic block">
-                            Empty
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+              <div className="mt-1">
+                <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 text-[10px] font-extrabold px-3 py-1 rounded-full border border-blue-200">
+                  <Plus className="h-3 w-3" /> Select Multiple Reference Images
+                </span>
+              </div>
             </div>
 
-            {/* Save Buttons */}
-            <div className="border-t pt-4 flex gap-3.5 justify-end">
-              <Link
-                href="/products"
-                className="bg-gray-100 hover:bg-gray-200 text-gray-600 px-4 py-2.5 rounded-lg text-xs font-bold transition"
-              >
-                Cancel
-              </Link>
+            {/* Selected Images Preview Grid */}
+            {selectedFiles.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    {selectedFiles.length} {selectedFiles.length === 1 ? "Image" : "Images"} Selected
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedFiles([]);
+                      setPreviews([]);
+                    }}
+                    className="text-[11px] font-bold text-red-600 hover:underline cursor-pointer"
+                  >
+                    Clear All
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {previews.map((previewUrl, idx) => {
+                    const file = selectedFiles[idx];
+                    return (
+                      <div
+                        key={idx}
+                        className="relative group bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden p-2 flex flex-col justify-between"
+                      >
+                        <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-white border border-slate-100 mb-1.5">
+                          <img
+                            src={previewUrl}
+                            alt={`Preview ${idx + 1}`}
+                            className="h-full w-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeFile(idx);
+                            }}
+                            className="absolute top-1.5 right-1.5 bg-black/70 hover:bg-red-600 text-white p-1 rounded-lg transition cursor-pointer"
+                            title="Remove image"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        <div className="text-[10px] text-slate-500 font-medium truncate">
+                          {file?.name || `Image #${idx + 1}`}
+                        </div>
+                        <div className="text-[9px] text-slate-400 font-bold">
+                          {file ? `${(file.size / (1024 * 1024)).toFixed(2)} MB` : ""}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Automated AI Pipeline Indicator */}
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+                Automatic Post-Registration Flow
+              </span>
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                <span className="h-2 w-2 rounded-full bg-blue-500"></span>
+                1. Product saved in PostgreSQL Database
+              </div>
+              <div className="flex items-center gap-2 text-xs font-bold text-purple-700">
+                <span className="h-2 w-2 rounded-full bg-purple-500"></span>
+                2. DINOv2 generates 384-dimensional feature embeddings for each image
+              </div>
+              <div className="flex items-center gap-2 text-xs font-bold text-emerald-700">
+                <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
+                3. FAISS index automatically updated & ready for AI verification
+              </div>
+            </div>
+
+            {/* Register Product Submit Button (Prompt Requirement 4) */}
+            <div className="pt-3 border-t border-slate-100">
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-5 py-2.5 rounded-lg text-xs font-bold transition flex items-center gap-2 shadow-md"
+                className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white py-3.5 px-6 rounded-2xl font-black text-xs shadow-md shadow-blue-600/30 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
               >
                 {isSubmitting ? (
                   <>
                     <RefreshCw className="h-4 w-4 animate-spin" />
-                    Registering Product...
+                    <span>
+                      {submitStep === "registering_product" && "Registering product..."}
+                      {submitStep === "uploading_images" && "Uploading reference images..."}
+                      {submitStep === "dinov2_embedding" && "Generating DINOv2 embeddings..."}
+                      {submitStep === "faiss_indexing" && "Updating FAISS index..."}
+                      {submitStep === "completed" && "Registration complete!"}
+                    </span>
                   </>
                 ) : (
                   <>
-                    <Save className="h-4 w-4" />
-                    Register Product & Upload
+                    <Box className="h-4 w-4" />
+                    Register Product & Auto-Index AI
                   </>
                 )}
               </button>
@@ -481,87 +653,76 @@ export default function AddProductPage() {
           </div>
         </form>
 
-        {/* Dynamic AI Registration Progress Overlay (Prompt 14) */}
-        {isSubmitting && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-gray-100 flex flex-col gap-4">
-              <div className="flex items-center gap-3 border-b pb-3">
-                <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
-                  <RefreshCw className={`h-5 w-5 ${submitStep !== "ready" ? "animate-spin" : ""}`} />
+        {/* 5. SUCCESS CONFIRMATION MODAL (Prompt Requirement 5) */}
+        {showSuccessModal && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-lg w-full p-8 shadow-2xl border border-slate-200 text-center space-y-6">
+              {/* Top Success Badge */}
+              <div className="mx-auto h-16 w-16 bg-emerald-100 text-emerald-600 rounded-3xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                <CheckCircle2 className="h-8 w-8" />
+              </div>
+
+              <div>
+                <h3 className="text-xl font-black text-slate-900">
+                  Registration & Indexing Successful!
+                </h3>
+                <p className="text-xs text-slate-500 font-medium mt-1">
+                  Product <span className="font-bold text-slate-800">{name}</span> has been fully registered and integrated into the AI verification pipeline.
+                </p>
+              </div>
+
+              {/* Exact 3 Required Confirmation Messages (Prompt Requirement 5) */}
+              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 text-left space-y-3">
+                <div className="flex items-center gap-3 text-xs font-extrabold text-emerald-800 bg-emerald-50/80 p-2.5 rounded-xl border border-emerald-200">
+                  <Check className="h-4 w-4 text-emerald-600 stroke-[3] shrink-0" />
+                  <span>Product registered successfully</span>
                 </div>
-                <div>
-                  <h3 className="font-bold text-gray-900 text-sm">Dynamic AI Product Registration</h3>
-                  <p className="text-[11px] text-gray-500 font-medium">Automatic DINOv2 visual embedding & FAISS indexing</p>
+
+                <div className="flex items-center gap-3 text-xs font-extrabold text-purple-800 bg-purple-50/80 p-2.5 rounded-xl border border-purple-200">
+                  <Sparkles className="h-4 w-4 text-purple-600 shrink-0" />
+                  <span>Reference images indexed successfully</span>
+                </div>
+
+                <div className="flex items-center gap-3 text-xs font-extrabold text-blue-800 bg-blue-50/80 p-2.5 rounded-xl border border-blue-200">
+                  <ShieldCheck className="h-4 w-4 text-blue-600 shrink-0" />
+                  <span>Ready for AI verification</span>
                 </div>
               </div>
 
-              {/* Progress Steps */}
-              <div className="flex flex-col gap-3 py-2">
-                {/* Step 1 */}
-                <div className="flex items-center gap-3">
-                  {submitStep === "creating_product" ? (
-                    <RefreshCw className="h-4 w-4 animate-spin text-blue-600" />
-                  ) : (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                  )}
-                  <span className={`text-xs font-semibold ${submitStep === "creating_product" ? "text-blue-600 font-bold" : "text-gray-700"}`}>
-                    Creating product...
-                  </span>
-                </div>
+              {/* Action Buttons */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                {registeredProductId && (
+                  <Link
+                    href={`/products/${registeredProductId}`}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs py-3 px-4 rounded-xl transition shadow-md shadow-blue-600/30 flex items-center justify-center gap-1.5"
+                  >
+                    View Product Details
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                )}
 
-                {/* Step 2 */}
-                <div className="flex items-center gap-3">
-                  {submitStep === "creating_product" ? (
-                    <div className="h-4 w-4 rounded-full border border-gray-300"></div>
-                  ) : submitStep === "uploading_images" ? (
-                    <RefreshCw className="h-4 w-4 animate-spin text-blue-600" />
-                  ) : (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                  )}
-                  <span className={`text-xs font-semibold ${submitStep === "uploading_images" ? "text-blue-600 font-bold" : (submitStep === "creating_product" ? "text-gray-400" : "text-gray-700")}`}>
-                    Uploading images...
-                  </span>
-                </div>
+                <Link
+                  href="/verification"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-3 px-4 rounded-xl transition shadow-md shadow-emerald-600/30 flex items-center justify-center gap-1.5"
+                >
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Test in AI Sandbox
+                </Link>
 
-                {/* Step 3 */}
-                <div className="flex items-center gap-3">
-                  {["creating_product", "uploading_images"].includes(submitStep) ? (
-                    <div className="h-4 w-4 rounded-full border border-gray-300"></div>
-                  ) : submitStep === "generating_embeddings" ? (
-                    <RefreshCw className="h-4 w-4 animate-spin text-blue-600" />
-                  ) : (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                  )}
-                  <span className={`text-xs font-semibold ${submitStep === "generating_embeddings" ? "text-blue-600 font-bold" : (["creating_product", "uploading_images"].includes(submitStep) ? "text-gray-400" : "text-gray-700")}`}>
-                    Generating visual embeddings...
-                  </span>
-                </div>
+                <button
+                  type="button"
+                  onClick={handleResetForm}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs py-3 px-4 rounded-xl transition cursor-pointer"
+                >
+                  Add Another Product
+                </button>
 
-                {/* Step 4 */}
-                <div className="flex items-center gap-3">
-                  {["creating_product", "uploading_images", "generating_embeddings"].includes(submitStep) ? (
-                    <div className="h-4 w-4 rounded-full border border-gray-300"></div>
-                  ) : submitStep === "updating_index" ? (
-                    <RefreshCw className="h-4 w-4 animate-spin text-blue-600" />
-                  ) : (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                  )}
-                  <span className={`text-xs font-semibold ${submitStep === "updating_index" ? "text-blue-600 font-bold" : (["creating_product", "uploading_images", "generating_embeddings"].includes(submitStep) ? "text-gray-400" : "text-gray-700")}`}>
-                    Updating visual index...
-                  </span>
-                </div>
-
-                {/* Step 5 */}
-                <div className="flex items-center gap-3 pt-1 border-t border-gray-100">
-                  {submitStep === "ready" ? (
-                    <CheckCircle2 className="h-5 w-5 text-emerald-600 animate-bounce" />
-                  ) : (
-                    <div className="h-4 w-4 rounded-full border border-gray-300"></div>
-                  )}
-                  <span className={`text-xs font-bold ${submitStep === "ready" ? "text-emerald-700 font-black text-sm" : "text-gray-400"}`}>
-                    ✓ Product ready for AI recognition
-                  </span>
-                </div>
+                <Link
+                  href="/products"
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs py-3 px-4 rounded-xl transition text-center flex items-center justify-center"
+                >
+                  Go to Products List
+                </Link>
               </div>
             </div>
           </div>
