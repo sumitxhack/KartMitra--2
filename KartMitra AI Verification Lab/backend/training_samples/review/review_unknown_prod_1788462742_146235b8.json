@@ -1,0 +1,10 @@
+{
+  "image_file": "review_unknown_prod_1788462742_146235b8.jpg",
+  "status": "REVIEW",
+  "product_id": null,
+  "timestamp": 1788462742,
+  "metadata": {
+    "reason": "Weak recognition signals (confidence 0.37 < threshold 0.45).",
+    "confidence": 0.3692
+  }
+}

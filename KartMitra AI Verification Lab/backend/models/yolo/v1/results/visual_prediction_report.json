@@ -1,0 +1,220 @@
+[
+  {
+    "image": "img_2c7500d3-9.jpg",
+    "ground_truth_classes": [
+      "Truke Earbuds"
+    ],
+    "predicted_classes": [
+      "Truke Earbuds"
+    ],
+    "confidences": [
+      0.7886
+    ],
+    "bounding_boxes": [
+      [
+        309.5,
+        8.9,
+        716.6,
+        576.0
+      ]
+    ],
+    "localization": "CORRECT",
+    "wrong_class": false,
+    "missed_detection": false,
+    "duplicate_detection": false,
+    "visualization_path": "models\\yolo\\v1\\results\\predictions\\pred_img_2c7500d3-9.jpg"
+  },
+  {
+    "image": "img_2faaa85c-c.jpg",
+    "ground_truth_classes": [
+      "Casio Calculator"
+    ],
+    "predicted_classes": [
+      "Casio Calculator"
+    ],
+    "confidences": [
+      0.8088
+    ],
+    "bounding_boxes": [
+      [
+        62.5,
+        47.3,
+        920.3,
+        471.7
+      ]
+    ],
+    "localization": "CORRECT",
+    "wrong_class": false,
+    "missed_detection": false,
+    "duplicate_detection": false,
+    "visualization_path": "models\\yolo\\v1\\results\\predictions\\pred_img_2faaa85c-c.jpg"
+  },
+  {
+    "image": "img_4ebe5a13-4.jpg",
+    "ground_truth_classes": [
+      "Truke Earbuds"
+    ],
+    "predicted_classes": [
+      "Casio Calculator"
+    ],
+    "confidences": [
+      0.3101
+    ],
+    "bounding_boxes": [
+      [
+        535.8,
+        2.8,
+        928.0,
+        575.8
+      ]
+    ],
+    "localization": "CORRECT",
+    "wrong_class": true,
+    "missed_detection": false,
+    "duplicate_detection": false,
+    "visualization_path": "models\\yolo\\v1\\results\\predictions\\pred_img_4ebe5a13-4.jpg"
+  },
+  {
+    "image": "img_548e60f6-2.jpg",
+    "ground_truth_classes": [
+      "Casio Calculator"
+    ],
+    "predicted_classes": [],
+    "confidences": [],
+    "bounding_boxes": [],
+    "localization": "MISSED",
+    "wrong_class": false,
+    "missed_detection": true,
+    "duplicate_detection": false,
+    "visualization_path": "models\\yolo\\v1\\results\\predictions\\pred_img_548e60f6-2.jpg"
+  },
+  {
+    "image": "img_62ee01c5-7.jpg",
+    "ground_truth_classes": [
+      "Truke Earbuds"
+    ],
+    "predicted_classes": [
+      "Truke Earbuds"
+    ],
+    "confidences": [
+      0.9262
+    ],
+    "bounding_boxes": [
+      [
+        238.2,
+        0.0,
+        831.8,
+        448.0
+      ]
+    ],
+    "localization": "CORRECT",
+    "wrong_class": false,
+    "missed_detection": false,
+    "duplicate_detection": false,
+    "visualization_path": "models\\yolo\\v1\\results\\predictions\\pred_img_62ee01c5-7.jpg"
+  },
+  {
+    "image": "img_762cf24c-8.jpg",
+    "ground_truth_classes": [
+      "Casio Calculator",
+      "Casio Calculator"
+    ],
+    "predicted_classes": [
+      "Casio Calculator"
+    ],
+    "confidences": [
+      0.6498
+    ],
+    "bounding_boxes": [
+      [
+        318.7,
+        10.0,
+        738.5,
+        559.5
+      ]
+    ],
+    "localization": "CORRECT",
+    "wrong_class": false,
+    "missed_detection": false,
+    "duplicate_detection": false,
+    "visualization_path": "models\\yolo\\v1\\results\\predictions\\pred_img_762cf24c-8.jpg"
+  },
+  {
+    "image": "img_7cedc145-6.jpg",
+    "ground_truth_classes": [
+      "Truke Earbuds"
+    ],
+    "predicted_classes": [],
+    "confidences": [],
+    "bounding_boxes": [],
+    "localization": "MISSED",
+    "wrong_class": false,
+    "missed_detection": true,
+    "duplicate_detection": false,
+    "visualization_path": "models\\yolo\\v1\\results\\predictions\\pred_img_7cedc145-6.jpg"
+  },
+  {
+    "image": "img_be2bd5f7-8.jpg",
+    "ground_truth_classes": [
+      "Truke Earbuds"
+    ],
+    "predicted_classes": [
+      "Truke Earbuds"
+    ],
+    "confidences": [
+      0.3875
+    ],
+    "bounding_boxes": [
+      [
+        172.4,
+        0.0,
+        1024.0,
+        576.0
+      ]
+    ],
+    "localization": "CORRECT",
+    "wrong_class": false,
+    "missed_detection": false,
+    "duplicate_detection": false,
+    "visualization_path": "models\\yolo\\v1\\results\\predictions\\pred_img_be2bd5f7-8.jpg"
+  },
+  {
+    "image": "img_c4599fe1-1.jpg",
+    "ground_truth_classes": [
+      "Casio Calculator"
+    ],
+    "predicted_classes": [],
+    "confidences": [],
+    "bounding_boxes": [],
+    "localization": "MISSED",
+    "wrong_class": false,
+    "missed_detection": true,
+    "duplicate_detection": false,
+    "visualization_path": "models\\yolo\\v1\\results\\predictions\\pred_img_c4599fe1-1.jpg"
+  },
+  {
+    "image": "img_f49ac916-f.jpg",
+    "ground_truth_classes": [
+      "Casio Calculator"
+    ],
+    "predicted_classes": [
+      "Casio Calculator"
+    ],
+    "confidences": [
+      0.3936
+    ],
+    "bounding_boxes": [
+      [
+        2.9,
+        0.0,
+        1003.0,
+        409.4
+      ]
+    ],
+    "localization": "CORRECT",
+    "wrong_class": false,
+    "missed_detection": false,
+    "duplicate_detection": false,
+    "visualization_path": "models\\yolo\\v1\\results\\predictions\\pred_img_f49ac916-f.jpg"
+  }
+]

@@ -1,0 +1,8 @@
+path: data/kartmitra/dataset
+train: train/images
+val: val/images
+test: test/images
+
+names:
+  0: casio_calculator
+  1: truke_earbuds

@@ -1,0 +1,28 @@
+{
+  "precision": 0.6998,
+  "recall": 0.6,
+  "mAP50": 0.7034,
+  "mAP50_95": 0.3142,
+  "per_class": {
+    "Casio Calculator": {
+      "precision": 0.6229,
+      "recall": 0.5,
+      "mAP50": 0.655,
+      "mAP50_95": 0.2445
+    },
+    "Truke Earbuds": {
+      "precision": 0.7766,
+      "recall": 0.7,
+      "mAP50": 0.7517,
+      "mAP50_95": 0.384
+    }
+  },
+  "training_duration_seconds": 865.54,
+  "results_dict": {
+    "metrics/precision(B)": 0.6997618767779192,
+    "metrics/recall(B)": 0.6,
+    "metrics/mAP50(B)": 0.7033762999452655,
+    "metrics/mAP50-95(B)": 0.3142332974370229,
+    "fitness": 0.3142332974370229
+  }
+}

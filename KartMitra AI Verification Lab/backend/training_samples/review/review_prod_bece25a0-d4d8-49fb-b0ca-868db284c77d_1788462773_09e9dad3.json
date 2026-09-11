@@ -1,0 +1,10 @@
+{
+  "image_file": "review_prod_bece25a0-d4d8-49fb-b0ca-868db284c77d_1788462773_09e9dad3.jpg",
+  "status": "REVIEW",
+  "product_id": "bece25a0-d4d8-49fb-b0ca-868db284c77d",
+  "timestamp": 1788462773,
+  "metadata": {
+    "reason": "Visual reference similarity match for 'Truke Earbuds' (similarity: 0.85).",
+    "confidence": 0.489
+  }
+}

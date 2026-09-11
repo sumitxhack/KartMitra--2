@@ -1,0 +1,82 @@
+{
+  "model_version": "yolo_v1",
+  "base_model": "yolov8n.pt",
+  "training_date_time": "2026-09-04T00:31:05.061337",
+  "dataset_version": "v1",
+  "dataset_hash": "600dd910478839e7d80b208322b564bd",
+  "classes": {
+    "0": "Casio Calculator",
+    "1": "Truke Earbuds"
+  },
+  "num_train_images": 70,
+  "num_val_images": 20,
+  "num_test_images": 10,
+  "training_configuration": {
+    "epochs": 20,
+    "batch_size": 8,
+    "image_size": 640,
+    "device": "cpu",
+    "seed": 42,
+    "patience": 10,
+    "training_duration_seconds": 865.54
+  },
+  "metrics": {
+    "val": {
+      "precision": 0.6998,
+      "recall": 0.6,
+      "mAP50": 0.7034,
+      "mAP50_95": 0.3142,
+      "per_class": {
+        "Casio Calculator": {
+          "precision": 0.6229,
+          "recall": 0.5,
+          "mAP50": 0.655,
+          "mAP50_95": 0.2445
+        },
+        "Truke Earbuds": {
+          "precision": 0.7766,
+          "recall": 0.7,
+          "mAP50": 0.7517,
+          "mAP50_95": 0.384
+        }
+      },
+      "training_duration_seconds": 865.54,
+      "results_dict": {
+        "metrics/precision(B)": 0.6997618767779192,
+        "metrics/recall(B)": 0.6,
+        "metrics/mAP50(B)": 0.7033762999452655,
+        "metrics/mAP50-95(B)": 0.3142332974370229,
+        "fitness": 0.3142332974370229
+      }
+    },
+    "test": {
+      "test_precision": 0.7323,
+      "test_recall": 0.6948,
+      "test_mAP50": 0.7694,
+      "test_mAP50_95": 0.462,
+      "per_class": {
+        "Casio Calculator": {
+          "precision": 0.5384,
+          "recall": 0.5896,
+          "mAP50": 0.6911,
+          "mAP50_95": 0.4226
+        },
+        "Truke Earbuds": {
+          "precision": 0.9262,
+          "recall": 0.8,
+          "mAP50": 0.8476,
+          "mAP50_95": 0.5015
+        }
+      },
+      "results_dict": {
+        "metrics/precision(B)": 0.7322879984883652,
+        "metrics/recall(B)": 0.6947967024538053,
+        "metrics/mAP50(B)": 0.7693872180451127,
+        "metrics/mAP50-95(B)": 0.46204712178937274,
+        "fitness": 0.46204712178937274
+      }
+    }
+  },
+  "negative_test": "NEGATIVE TEST DATA NOT AVAILABLE",
+  "git_commit": "bd9c1c3e2eef5ea2a62e430ce5abbcdf8fa9c566"
+}

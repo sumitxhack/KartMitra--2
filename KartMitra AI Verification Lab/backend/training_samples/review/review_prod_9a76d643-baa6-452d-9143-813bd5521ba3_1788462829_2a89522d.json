@@ -1,0 +1,10 @@
+{
+  "image_file": "review_prod_9a76d643-baa6-452d-9143-813bd5521ba3_1788462829_2a89522d.jpg",
+  "status": "REVIEW",
+  "product_id": "9a76d643-baa6-452d-9143-813bd5521ba3",
+  "timestamp": 1788462829,
+  "metadata": {
+    "reason": "Visual reference similarity match for 'Casio Calculator' (similarity: 0.77).",
+    "confidence": 0.27
+  }
+}

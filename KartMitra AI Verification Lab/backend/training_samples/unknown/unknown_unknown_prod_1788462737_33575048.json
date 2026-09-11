@@ -1,0 +1,10 @@
+{
+  "image_file": "unknown_unknown_prod_1788462737_33575048.jpg",
+  "status": "UNKNOWN",
+  "product_id": null,
+  "timestamp": 1788462737,
+  "metadata": {
+    "reason": "Weak recognition signals (confidence 0.41 < threshold 0.45).",
+    "confidence": 0.4057
+  }
+}

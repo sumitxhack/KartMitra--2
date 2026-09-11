@@ -1,0 +1,10 @@
+{
+  "image_file": "review_prod_bece25a0-d4d8-49fb-b0ca-868db284c77d_1788462760_2bc899ad.jpg",
+  "status": "REVIEW",
+  "product_id": "bece25a0-d4d8-49fb-b0ca-868db284c77d",
+  "timestamp": 1788462760,
+  "metadata": {
+    "reason": "Moderate recognition signals for 'Truke Earbuds' (confidence: 0.28). Manual review or reposition recommended.",
+    "confidence": 0.2783
+  }
+}

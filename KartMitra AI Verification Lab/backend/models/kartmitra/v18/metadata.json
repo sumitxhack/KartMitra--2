@@ -1,0 +1,14 @@
+{
+  "model": "kartmitra_product_detector",
+  "dataset_version": "v1",
+  "version": "v18",
+  "classes": 9,
+  "created_at": "2026-09-03T21:06:36.138722",
+  "training_run_id": "b1898269-2fc0-4722-9d82-61c71b154104",
+  "metrics": {
+    "precision": 0.85,
+    "recall": 0.82,
+    "mAP50": 0.86,
+    "mAP50_95": 0.7
+  }
+}

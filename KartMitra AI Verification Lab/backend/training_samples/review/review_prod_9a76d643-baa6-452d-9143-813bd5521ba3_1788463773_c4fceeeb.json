@@ -1,0 +1,10 @@
+{
+  "image_file": "review_prod_9a76d643-baa6-452d-9143-813bd5521ba3_1788463773_c4fceeeb.jpg",
+  "status": "REVIEW",
+  "product_id": "9a76d643-baa6-452d-9143-813bd5521ba3",
+  "timestamp": 1788463773,
+  "metadata": {
+    "reason": "Moderate recognition signals for 'Casio Calculator' (confidence: 0.31). Manual review or reposition recommended.",
+    "confidence": 0.3135
+  }
+}
